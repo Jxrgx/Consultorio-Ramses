@@ -1,0 +1,14 @@
+[project]
+name = "psico-agenda-backend"
+version = "0.1.0"
+description = "API de psico-agenda (FastAPI)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.143.0",
+    "google-api-python-client>=2.201.0",
+    "pydantic-settings>=2.15.0",
+    "supabase>=2.32.0",
+    "tzdata>=2026.5",
+    "uvicorn[standard]>=0.54.0",
+]
