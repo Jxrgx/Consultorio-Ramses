@@ -1,17 +1,23 @@
 import clsx from 'clsx'
 import { ArrowLeft, LoaderCircle, Mail, MessageSquareText, Phone, User, type LucideIcon } from 'lucide-react'
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { normalizePhone, type BookingFormValues } from '../utils/booking'
+import type { BookingFormValues } from '../utils/booking'
+import { LIMITS, digitsOnly, validateEmail, validateName, validateNotes, validatePhone } from '../utils/validation'
 
 type Errors = Partial<Record<keyof BookingFormValues, string>>
+
+const VALIDATORS: Record<keyof BookingFormValues, (value: string) => string | null> = {
+  fullName: validateName,
+  phone: validatePhone,
+  email: validateEmail,
+  notes: validateNotes,
+}
+
 function validate(values: BookingFormValues): Errors {
   const errors: Errors = {}
-  if (values.fullName.trim().length < 3) errors.fullName = 'Escribe tu nombre completo.'
-  if (!/^\+?\d{8,15}$/.test(normalizePhone(values.phone))) {
-    errors.phone = 'Escribe un teléfono válido, idealmente con lada internacional (ej. +52 55 1234 5678).'
-  }
-  if (values.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim())) {
-    errors.email = 'Escribe un correo válido o deja el campo vacío.'
+  for (const field of Object.keys(VALIDATORS) as (keyof BookingFormValues)[]) {
+    const message = VALIDATORS[field](values[field])
+    if (message) errors[field] = message
   }
   return errors
 }
@@ -33,12 +39,20 @@ export function BookingForm({ values, onChange, onSubmit, onBack, submitting, su
     if (errors[field]) setErrors({ ...errors, [field]: undefined })
   }
 
+  // Valida un campo al salir de él (si tiene algo escrito), para avisar antes de enviar
+  function validateField(field: keyof BookingFormValues) {
+    if (!values[field]) return
+    setErrors((prev) => ({ ...prev, [field]: VALIDATORS[field](values[field]) ?? undefined }))
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const found = validate(values)
     setErrors(found)
     if (Object.keys(found).length === 0) onSubmit()
   }
+
+  const notesLeft = LIMITS.notes - values.notes.length
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -48,8 +62,10 @@ export function BookingForm({ values, onChange, onSubmit, onBack, submitting, su
         <input
           id="fullName"
           autoComplete="name"
+          maxLength={LIMITS.name}
           value={values.fullName}
           onChange={(e) => update('fullName', e.target.value)}
+          onBlur={() => validateField('fullName')}
           placeholder="Ej. María González López"
           className={inputClass(errors.fullName)}
         />
@@ -59,17 +75,20 @@ export function BookingForm({ values, onChange, onSubmit, onBack, submitting, su
         label="Teléfono (WhatsApp)"
         icon={Phone}
         error={errors.phone}
-        hint="Te escribiremos a este número para confirmar tu cita."
+        hint="Solo números: 10 dígitos, o con código de país (ej. 525512345678). Te escribiremos aquí para confirmar tu cita."
         htmlFor="phone"
       >
         <input
           id="phone"
           type="tel"
           autoComplete="tel"
-          inputMode="tel"
+          inputMode="numeric"
+          maxLength={LIMITS.phoneMax}
           value={values.phone}
-          onChange={(e) => update('phone', e.target.value)}
-          placeholder="+52 55 1234 5678"
+          // Bloquea letras y símbolos: solo se conservan los dígitos (también al pegar)
+          onChange={(e) => update('phone', digitsOnly(e.target.value))}
+          onBlur={() => validateField('phone')}
+          placeholder="5512345678"
           className={inputClass(errors.phone)}
         />
       </Field>
@@ -79,21 +98,39 @@ export function BookingForm({ values, onChange, onSubmit, onBack, submitting, su
           id="email"
           type="email"
           autoComplete="email"
+          maxLength={LIMITS.email}
           value={values.email}
           onChange={(e) => update('email', e.target.value)}
-          placeholder="tucorreo@ejemplo.com"
+          onBlur={() => validateField('email')}
+          placeholder="usuario@dominio.com"
           className={inputClass(errors.email)}
         />
       </Field>
 
-      <Field label="Motivo de la consulta" optional icon={MessageSquareText} htmlFor="notes">
+      <Field
+        label="Motivo de la consulta"
+        optional
+        icon={MessageSquareText}
+        error={errors.notes}
+        htmlFor="notes"
+        aside={
+          <span
+            aria-live="polite"
+            className={clsx('text-xs tabular-nums', notesLeft <= 20 ? 'font-medium text-amber-600' : 'text-slate-400')}
+          >
+            {notesLeft} caracteres restantes
+          </span>
+        }
+      >
         <textarea
           id="notes"
           rows={3}
+          maxLength={LIMITS.notes}
           value={values.notes}
           onChange={(e) => update('notes', e.target.value)}
+          onBlur={() => validateField('notes')}
           placeholder="Cuéntanos brevemente qué te gustaría trabajar (opcional)."
-          className={clsx(inputClass(), 'resize-y')}
+          className={clsx(inputClass(errors.notes), 'resize-y')}
         />
       </Field>
 
@@ -140,9 +177,11 @@ interface FieldProps {
   error?: string
   hint?: string
   optional?: boolean
+  // Contenido bajo el campo, alineado a la derecha (p. ej. contador de caracteres)
+  aside?: ReactNode
 }
 
-function Field({ label, icon: Icon, htmlFor, children, error, hint, optional }: FieldProps) {
+function Field({ label, icon: Icon, htmlFor, children, error, hint, optional, aside }: FieldProps) {
   return (
     <div>
       <label htmlFor={htmlFor} className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
@@ -151,10 +190,11 @@ function Field({ label, icon: Icon, htmlFor, children, error, hint, optional }: 
         {optional && <span className="font-normal text-slate-400">(opcional)</span>}
       </label>
       {children}
-      {error ? (
-        <p className="mt-1.5 text-sm text-rose-600">{error}</p>
-      ) : (
-        hint && <p className="mt-1.5 text-sm text-slate-500">{hint}</p>
+      {(error || hint || aside) && (
+        <div className="mt-1.5 flex items-start justify-between gap-3">
+          {error ? <p className="text-sm text-rose-600">{error}</p> : <p className="text-sm text-slate-500">{hint}</p>}
+          {aside && <div className="shrink-0">{aside}</div>}
+        </div>
       )}
     </div>
   )

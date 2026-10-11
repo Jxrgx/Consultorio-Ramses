@@ -148,7 +148,27 @@ def create_calendar_event(appointment_data: CalendarEventData) -> CreatedEvent:
     return CreatedEvent(google_event_id=event["id"], meeting_link=_extract_meeting_link(event))
 
 
+CONFIRMED_PREFIX = "[CONFIRMADA] "
+
+
+def mark_event_confirmed(google_event_id: str, calendar_id: str | None = None) -> None:
+    """Antepone "[CONFIRMADA]" al título del evento (una sola vez)."""
+    events = get_calendar_service().events()
+    calendar_id = _resolve_calendar_id(calendar_id)
+    event = events.get(calendarId=calendar_id, eventId=google_event_id).execute()
+    summary = event.get("summary", "")
+    if not summary.startswith(CONFIRMED_PREFIX):
+        events.patch(
+            calendarId=calendar_id, eventId=google_event_id, body={"summary": CONFIRMED_PREFIX + summary}
+        ).execute()
+
+
 def delete_calendar_event(google_event_id: str, calendar_id: str | None = None) -> None:
-    get_calendar_service().events().delete(
-        calendarId=_resolve_calendar_id(calendar_id), eventId=google_event_id
-    ).execute()
+    """Borra el evento. Si ya no existe (borrado a mano en Google Calendar) no hace nada."""
+    try:
+        get_calendar_service().events().delete(
+            calendarId=_resolve_calendar_id(calendar_id), eventId=google_event_id
+        ).execute()
+    except HttpError as exc:
+        if exc.status_code not in (404, 410):
+            raise

@@ -1,8 +1,12 @@
+import { getAccessToken } from './supabase'
+
 // En desarrollo VITE_API_URL=/api/v1 pasa por el proxy de Vite hacia http://localhost:8000
 const API_URL = import.meta.env.VITE_API_URL ?? '/api/v1'
 
 export type AppointmentType = 'presencial' | 'online'
-export type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
+export type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+// Estados que el psicólogo puede asignar desde el panel ("pending" es solo el estado inicial)
+export type AdminStatus = Exclude<AppointmentStatus, 'pending'>
 
 export interface Slot {
   start: string
@@ -92,4 +96,37 @@ export function getAvailability(date: string, signal?: AbortSignal): Promise<Ava
 
 export function bookAppointment(data: BookAppointmentRequest): Promise<Appointment> {
   return request('/appointments/book', { method: 'POST', body: JSON.stringify(data) })
+}
+
+// --- Panel del psicólogo: envían el access token de la sesión de Supabase Auth ---
+
+export interface CalendarStatus {
+  connected: boolean
+  calendar_id: string
+  error: string | null
+}
+
+async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getAccessToken()
+  if (!token) throw new ApiError(401, 'Inicia sesión para continuar')
+  return request(path, { ...init, headers: { ...init?.headers, Authorization: `Bearer ${token}` } })
+}
+
+export function getAdminMe(): Promise<{ email: string }> {
+  return adminRequest('/admin/me')
+}
+
+export function getAdminAppointments(date: string, signal?: AbortSignal): Promise<Appointment[]> {
+  return adminRequest(`/admin/appointments?date=${encodeURIComponent(date)}`, { signal })
+}
+
+export function updateAppointmentStatus(id: string, status: AdminStatus): Promise<Appointment> {
+  return adminRequest(`/admin/appointments/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function getCalendarStatus(signal?: AbortSignal): Promise<CalendarStatus> {
+  return adminRequest('/admin/calendar/status', { signal })
 }

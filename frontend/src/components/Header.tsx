@@ -1,10 +1,19 @@
-import { Clock, HeartHandshake, Video } from 'lucide-react'
+import { Clock, HeartHandshake, LockKeyhole, Video } from 'lucide-react'
+import { Link } from 'react-router'
 import { PSYCHOLOGIST } from '../config'
 
 export function Header() {
   return (
     <header className="bg-gradient-to-br from-teal-700 to-teal-900 text-white">
-      <div className="mx-auto max-w-3xl px-4 pt-10 pb-20 sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 pt-4 pb-20 sm:px-6">
+        <div className="mb-6 flex justify-end">
+          <Link
+            to="/admin"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs text-teal-100 hover:bg-white/10 hover:text-white"
+          >
+            <LockKeyhole className="size-3.5" /> Acceso psicólogo
+          </Link>
+        </div>
         <div className="flex items-center gap-4">
           <div
             aria-hidden

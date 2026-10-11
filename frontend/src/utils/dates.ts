@@ -40,6 +40,20 @@ export function formatTime(isoDateTime: string, timeZone: string): string {
   )
 }
 
+// Formato de 12 horas con dos dígitos: "09:00 AM"
+export function formatTime12(isoDateTime: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hour12: true }).format(
+    new Date(isoDateTime),
+  )
+}
+
+export function greetingFor(timeZone: string): string {
+  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', hourCycle: 'h23' }).format(new Date()))
+  if (hour < 12) return 'Buenos días'
+  if (hour < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
 export function dateInZone(isoDateTime: string, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date(isoDateTime))
 }

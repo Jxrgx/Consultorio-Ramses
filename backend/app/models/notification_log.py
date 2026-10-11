@@ -16,3 +16,7 @@ class NotificationLog(BaseModel):
     type: NotificationType
     status: NotificationStatus
     sent_at: datetime
+    # ID del mensaje en WhatsApp (wamid)
+    provider_message_id: str | None = None
+    # Motivo del fallo cuando status = failed
+    error: str | None = None
