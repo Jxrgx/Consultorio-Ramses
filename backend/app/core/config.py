@@ -1,7 +1,7 @@
 from datetime import time
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     DEFAULT_COUNTRY_CODE: str = "52"
 
     # WhatsApp Cloud API (Meta). developers.facebook.com > tu app > WhatsApp > API Setup
-    WHATSAPP_ACCESS_TOKEN: str | None = None
+    WHATSAPP_ACCESS_TOKEN: str | None = Field(
+        default=None, validation_alias=AliasChoices("WHATSAPP_ACCESS_TOKEN", "WHATSAPP_TOKEN")
+    )
     WHATSAPP_PHONE_NUMBER_ID: str | None = None
     # Webhook: el verify token lo inventas tú y lo escribes también en la configuración del webhook
     # en Meta; el app secret está en App settings > Basic y sirve para validar la firma.
