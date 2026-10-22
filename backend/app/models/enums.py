@@ -7,6 +7,8 @@ class AppointmentType(StrEnum):
 
 
 class AppointmentStatus(StrEnum):
+    # Horario apartado mientras el paciente verifica su teléfono con el OTP
+    HOLD = "hold"
     PENDING = "pending"
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"

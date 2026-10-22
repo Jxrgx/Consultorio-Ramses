@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { Check } from 'lucide-react'
 
-const STEPS = ['Modalidad', 'Fecha y hora', 'Tus datos']
+const STEPS = ['Modalidad', 'Fecha y hora', 'Tus datos', 'Verificación']
 
 interface StepperProps {
   // 1-based; un valor mayor que STEPS.length marca todos como completos

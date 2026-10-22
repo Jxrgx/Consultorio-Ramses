@@ -1,26 +1,33 @@
 import { ArrowLeft, ArrowRight, Building2, CalendarDays, CircleAlert, Clock, Video, X } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AppointmentTypeSelector } from '../components/AppointmentTypeSelector'
 import { BookingForm } from '../components/BookingForm'
 import { DatePicker } from '../components/DatePicker'
 import { Header } from '../components/Header'
+import { OtpVerification } from '../components/OtpVerification'
 import { SlotPicker } from '../components/SlotPicker'
 import { Stepper } from '../components/Stepper'
 import { SuccessCard } from '../components/SuccessCard'
-import { BOOKING_WINDOW_DAYS, TIMEZONE } from '../config'
+import { Turnstile } from '../components/Turnstile'
+import { BOOKING_WINDOW_DAYS, TIMEZONE, TURNSTILE_SITE_KEY } from '../config'
 import {
   ApiError,
   bookAppointment,
   getAvailability,
   type Appointment,
   type AppointmentType,
+  type HoldResponse,
   type Slot,
 } from '../services/api'
 import { EMPTY_FORM, type BookingFormValues } from '../utils/booking'
 import { addDays, formatLongDate, formatTime, todayIn } from '../utils/dates'
 import { collapseSpaces } from '../utils/validation'
 
-type Step = 1 | 2 | 3 | 4
+// 1 modalidad · 2 fecha y hora · 3 datos · 4 verificación por WhatsApp · 5 confirmación
+type Step = 1 | 2 | 3 | 4 | 5
+
+const SLOT_TAKEN = 'El horario solicitado no está disponible'
+const AGENDA_UNAVAILABLE = 'No pudimos consultar la agenda del consultorio en este momento. Inténtalo en unos minutos.'
 
 interface AvailabilityResult {
   // Identifica la consulta que produjo este resultado (fecha + recarga)
@@ -36,12 +43,19 @@ function errorMessage(err: unknown): string {
     case 0:
       return err.message
     case 409:
-      return 'Ese horario acaba de ser reservado. Por favor elige otro.'
+      return err.message === SLOT_TAKEN ? 'Ese horario acaba de ser reservado. Por favor elige otro.' : err.message
+    // Mensajes del backend pensados para el paciente: límites, captcha, código vencido
+    case 400:
+    case 410:
+    case 429:
+      return err.message
     case 422:
       return `Revisa tus datos: ${err.message}`
     case 502:
+      // Falla al enviar el código por WhatsApp; los errores de Google Calendar son técnicos
+      return err.message.startsWith('Google Calendar') ? AGENDA_UNAVAILABLE : err.message
     case 503:
-      return 'No pudimos consultar la agenda del consultorio en este momento. Inténtalo en unos minutos.'
+      return AGENDA_UNAVAILABLE
     default:
       return `Ocurrió un error (código ${err.status}). Inténtalo de nuevo.`
   }
@@ -62,6 +76,10 @@ export function BookingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [bannerError, setBannerError] = useState<string | null>(null)
   const [appointment, setAppointment] = useState<Appointment | null>(null)
+  const [hold, setHold] = useState<HoldResponse | null>(null)
+  // Turnstile: cada token sirve para un solo envío; cambiar la key vuelve a montar el widget
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaKey, setCaptchaKey] = useState(0)
 
   const requestKey = date ? `${date}#${reloadKey}` : null
   // Está cargando mientras el último resultado no corresponda a la consulta actual
@@ -81,6 +99,16 @@ export function BookingPage() {
     return () => controller.abort()
   }, [date, reloadKey])
 
+  // Vuelve a elegir horario con la disponibilidad actualizada
+  const backToSlots = useCallback((message: string) => {
+    setHold(null)
+    setSlot(null)
+    setReloadKey((k) => k + 1)
+    setStep(2)
+    setBannerError(message)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
   function goTo(next: Step) {
     setBannerError(null)
     setStep(next)
@@ -97,7 +125,7 @@ export function BookingPage() {
     setSubmitting(true)
     setBannerError(null)
     try {
-      const result = await bookAppointment({
+      const held = await bookAppointment({
         patient_name: collapseSpaces(form.fullName),
         phone: form.phone,
         email: form.email.trim().toLowerCase() || null,
@@ -105,20 +133,28 @@ export function BookingPage() {
         start_time: slot.start,
         type,
         notes: form.notes.trim() || null,
+        captcha_token: captchaToken,
       })
-      setAppointment(result)
+      setHold(held)
       goTo(4)
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        // El horario se ocupó: volver a elegir hora con la disponibilidad actualizada
-        setSlot(null)
-        setReloadKey((k) => k + 1)
-        setStep(2)
+      if (err instanceof ApiError && err.status === 409 && err.message === SLOT_TAKEN) {
+        backToSlots(errorMessage(err))
+      } else {
+        setBannerError(errorMessage(err))
       }
-      setBannerError(errorMessage(err))
     } finally {
       setSubmitting(false)
+      // El token ya se usó (o caducó): pedir uno nuevo para el siguiente intento
+      setCaptchaToken(null)
+      setCaptchaKey((k) => k + 1)
     }
+  }
+
+  function verified(result: Appointment) {
+    setAppointment(result)
+    setHold(null)
+    goTo(5)
   }
 
   function reset() {
@@ -127,8 +163,24 @@ export function BookingPage() {
     setSlot(null)
     setForm(EMPTY_FORM)
     setAppointment(null)
+    setHold(null)
     goTo(1)
   }
+
+  const summary = type && date && slot && (
+    <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl bg-teal-50 p-4 text-sm text-teal-900">
+      <span className="flex items-center gap-1.5">
+        {type === 'online' ? <Video className="size-4" /> : <Building2 className="size-4" />}
+        {type === 'online' ? 'En línea' : 'Presencial'}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <CalendarDays className="size-4" /> {formatLongDate(date)}
+      </span>
+      <span className="flex items-center gap-1.5">
+        <Clock className="size-4" /> {formatTime(slot.start, timeZone)} – {formatTime(slot.end, timeZone)}
+      </span>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -136,7 +188,7 @@ export function BookingPage() {
 
       <main className="mx-auto -mt-12 max-w-3xl px-4 pb-16 sm:px-6">
         <div className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/60 ring-1 ring-slate-200 sm:p-8">
-          {step < 4 && (
+          {step < 5 && (
             <div className="mb-8">
               <Stepper current={step} />
             </div>
@@ -220,26 +272,29 @@ export function BookingPage() {
                 onSubmit={submit}
                 onBack={() => goTo(2)}
                 submitting={submitting}
-                summary={
-                  <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl bg-teal-50 p-4 text-sm text-teal-900">
-                    <span className="flex items-center gap-1.5">
-                      {type === 'online' ? <Video className="size-4" /> : <Building2 className="size-4" />}
-                      {type === 'online' ? 'En línea' : 'Presencial'}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <CalendarDays className="size-4" /> {formatLongDate(date)}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="size-4" /> {formatTime(slot.start, timeZone)} –{' '}
-                      {formatTime(slot.end, timeZone)}
-                    </span>
-                  </div>
+                summary={summary}
+                submitBlocked={Boolean(TURNSTILE_SITE_KEY) && !captchaToken}
+                extra={
+                  TURNSTILE_SITE_KEY && <Turnstile key={captchaKey} resetKey={captchaKey} onToken={setCaptchaToken} />
                 }
               />
             </section>
           )}
 
-          {step === 4 && appointment && (
+          {step === 4 && hold && (
+            <section>
+              <StepTitle title="Verifica tu número" subtitle="Último paso para reservar tu cita." />
+              <OtpVerification
+                hold={hold}
+                summary={summary}
+                onVerified={verified}
+                onExpired={backToSlots}
+                onBack={() => goTo(3)}
+              />
+            </section>
+          )}
+
+          {step === 5 && appointment && (
             <SuccessCard appointment={appointment} timeZone={timeZone} onBookAnother={reset} />
           )}
         </div>

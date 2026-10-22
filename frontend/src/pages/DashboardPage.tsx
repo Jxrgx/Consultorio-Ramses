@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CircleAlert, CircleCheck, X } from 'lucide-react'
+import { CircleAlert, CircleCheck, TriangleAlert, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { AppointmentTimeline } from '../components/dashboard/AppointmentTimeline'
@@ -56,6 +56,7 @@ export function DashboardPage() {
   const loading = result?.date !== date
   const refreshing = !loading && result?.requestId !== requestId
   const appointments = loading ? [] : (result?.appointments ?? [])
+  const unconfirmed = appointments.filter((a) => a.unconfirmed_alert).length
 
   // Sesión vencida o cuenta sin acceso: al cerrar sesión, ProtectedRoute manda a /login
   const handleAuthError = useCallback(
@@ -146,6 +147,14 @@ export function DashboardPage() {
             <h2 className="text-lg font-semibold text-slate-900">Agenda del día</h2>
             <DateNavigator value={date} today={today} onChange={setDate} />
           </div>
+          {unconfirmed > 0 && (
+            <div role="status" className="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+              <TriangleAlert className="size-5 shrink-0 text-amber-600" />
+              {unconfirmed === 1
+                ? '1 cita está por empezar y el paciente no la ha confirmado.'
+                : `${unconfirmed} citas están por empezar y los pacientes no las han confirmado.`}
+            </div>
+          )}
           <AppointmentTimeline
             appointments={appointments}
             timeZone={TIMEZONE}

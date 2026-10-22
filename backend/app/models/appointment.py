@@ -20,6 +20,8 @@ class Appointment(BaseModel):
     status: AppointmentStatus = AppointmentStatus.PENDING
     meeting_link: str | None = None
     notes: str | None = None
+    # Hasta cuándo dura el apartado de una cita en hold
+    hold_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     # Presente cuando la consulta incluye la relación: select("*, patient(*)")

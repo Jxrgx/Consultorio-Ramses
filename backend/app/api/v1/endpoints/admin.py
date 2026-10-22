@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -10,8 +10,8 @@ from postgrest.exceptions import APIError
 from app import crud
 from app.api.deps import AdminEmail, DbDep, calendar_errors, find_psychologist, require_admin
 from app.core.config import settings
-from app.models import Appointment, AppointmentStatus
-from app.schemas.admin import AppointmentStatusUpdate, CalendarStatus
+from app.models import Appointment, AppointmentStatus, NotificationStatus, NotificationType
+from app.schemas.admin import AdminAppointmentRead, AppointmentStatusUpdate, CalendarStatus
 from app.schemas.appointment import AppointmentRead
 from app.services.appointments import cancel_appointment, confirm_appointment
 from app.services.google_calendar import CalendarNotConfiguredError, CalendarQueryError, get_busy_slots
@@ -28,14 +28,39 @@ def me(email: AdminEmail) -> dict[str, str]:
     return {"email": email}
 
 
-@router.get("/appointments", response_model=list[AppointmentRead])
+@router.get("/appointments", response_model=list[AdminAppointmentRead])
 def list_appointments(
     db: DbDep,
     day: Annotated[date, Query(alias="date", description="Día a consultar (YYYY-MM-DD)")],
-) -> list[Appointment]:
-    """Citas del día (en la zona horaria del consultorio), en orden cronológico."""
+) -> list[AdminAppointmentRead]:
+    """Citas del día (en la zona horaria del consultorio), en orden cronológico.
+
+    Cada cita indica si ya se le envió el recordatorio y si requiere atención: sigue pendiente
+    y faltan UNCONFIRMED_ALERT_MINUTES o menos para que empiece (o ya está en curso).
+    """
     day_start = datetime.combine(day, time.min, tzinfo=ZoneInfo(settings.TIMEZONE))
-    return crud.list_appointments_between(db, day_start, day_start + timedelta(days=1))
+    appointments = [
+        a
+        for a in crud.list_appointments_between(db, day_start, day_start + timedelta(days=1))
+        # Los holds son reservas que aún no verifican su teléfono: no son citas de la agenda
+        if a.status != AppointmentStatus.HOLD
+    ]
+    reminded = crud.appointment_ids_with_notification(
+        db, [a.id for a in appointments], NotificationType.REMINDER_SAME_DAY, NotificationStatus.SENT
+    )
+    now = datetime.now(UTC)
+    alert_from = timedelta(minutes=settings.UNCONFIRMED_ALERT_MINUTES)
+    return [
+        AdminAppointmentRead.model_validate(
+            {
+                **a.model_dump(),
+                "reminder_sent": a.id in reminded,
+                "unconfirmed_alert": a.status == AppointmentStatus.PENDING
+                and a.start_time - alert_from <= now < a.end_time,
+            }
+        )
+        for a in appointments
+    ]
 
 
 @router.patch("/appointments/{appointment_id}/status", response_model=AppointmentRead)

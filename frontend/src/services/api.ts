@@ -27,6 +27,17 @@ export interface BookAppointmentRequest {
   start_time: string
   type: AppointmentType
   notes: string | null
+  // Token de Cloudflare Turnstile (si el captcha está activo)
+  captcha_token: string | null
+}
+
+/** Horario apartado mientras el paciente escribe el código que le llegó por WhatsApp. */
+export interface HoldResponse {
+  appointment_id: string
+  hold_expires_at: string
+  otp_expires_at: string
+  resend_available_at: string
+  phone_hint: string
 }
 
 export interface Patient {
@@ -48,6 +59,10 @@ export interface Appointment {
   meeting_link: string | null
   notes: string | null
   created_at: string
+  // Solo en el panel (/admin/appointments)
+  reminder_sent?: boolean
+  // Sigue pendiente y falta 1 h o menos para la cita (UNCONFIRMED_ALERT_MINUTES en el backend)
+  unconfirmed_alert?: boolean
 }
 
 export class ApiError extends Error {
@@ -94,8 +109,21 @@ export function getAvailability(date: string, signal?: AbortSignal): Promise<Ava
   return request(`/availability?date=${encodeURIComponent(date)}`, { signal })
 }
 
-export function bookAppointment(data: BookAppointmentRequest): Promise<Appointment> {
+/** Aparta el horario y envía el código de verificación por WhatsApp. */
+export function bookAppointment(data: BookAppointmentRequest): Promise<HoldResponse> {
   return request('/appointments/book', { method: 'POST', body: JSON.stringify(data) })
+}
+
+/** Con el código correcto la cita queda registrada (status "pending"). */
+export function verifyOtp(appointmentId: string, code: string): Promise<Appointment> {
+  return request('/appointments/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ appointment_id: appointmentId, code }),
+  })
+}
+
+export function resendOtp(appointmentId: string): Promise<HoldResponse> {
+  return request('/appointments/resend-otp', { method: 'POST', body: JSON.stringify({ appointment_id: appointmentId }) })
 }
 
 // --- Panel del psicólogo: envían el access token de la sesión de Supabase Auth ---

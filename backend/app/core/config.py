@@ -59,11 +59,43 @@ class Settings(BaseSettings):
     WHATSAPP_REMINDER_TEMPLATE: str = "recordatorio_cita"
     WHATSAPP_TEMPLATE_LANGUAGE: str = "es_MX"
 
-    # Recordatorios del mismo día: cada cuántos minutos se buscan citas pendientes y desde qué
-    # hora local se envían. Desactivar con REMINDERS_ENABLED=false (p. ej. con varios workers).
+    # Recordatorios: se envían cuando a una cita pendiente le faltan REMINDER_HOURS_BEFORE horas o
+    # menos, revisando cada REMINDER_INTERVAL_MINUTES y solo entre REMINDER_SEND_FROM y
+    # REMINDER_SEND_UNTIL (hora local) para no escribir de noche.
     REMINDERS_ENABLED: bool = True
+    REMINDER_HOURS_BEFORE: int = 24
     REMINDER_INTERVAL_MINUTES: int = 30
     REMINDER_SEND_FROM: time = time(8, 0)
+    REMINDER_SEND_UNTIL: time = time(21, 0)
+    # El panel marca "Sin confirmar" una cita pendiente a partir de estos minutos antes de empezar
+    UNCONFIRMED_ALERT_MINUTES: int = 60
+
+    # --- Reserva segura (portal del paciente) ---
+    # Rate limiting por IP (sintaxis de slowapi). Detrás de un proxy, arrancar uvicorn con
+    # --proxy-headers --forwarded-allow-ips=<ip del proxy> para que la IP sea la del cliente.
+    BOOKING_RATE_LIMIT: str = "3/15minutes"
+    VERIFY_RATE_LIMIT: str = "10/15minutes"
+    # Citas futuras en hold/pending/confirmed que puede tener un mismo teléfono
+    MAX_ACTIVE_APPOINTMENTS_PER_PHONE: int = 2
+    # Minutos que el horario queda apartado mientras el paciente verifica su teléfono
+    HOLD_MINUTES: int = 10
+
+    # Código de verificación (OTP) por WhatsApp. OTP_SECRET firma los códigos guardados (HMAC):
+    # generar con  python -c "import secrets; print(secrets.token_urlsafe(32))"
+    OTP_SECRET: str | None = None
+    OTP_TEMPLATE: str = "codigo_verificacion"
+    OTP_LENGTH: int = 6
+    OTP_TTL_MINUTES: int = 5
+    OTP_MAX_ATTEMPTS: int = 3
+    OTP_RESEND_SECONDS: int = 60
+    OTP_MAX_PER_PHONE_PER_HOUR: int = 3
+
+    # Cloudflare Turnstile. Sin TURNSTILE_SECRET_KEY no se exige captcha (útil en desarrollo).
+    TURNSTILE_SECRET_KEY: str | None = None
+
+    @property
+    def is_development(self) -> bool:
+        return self.ENVIRONMENT.lower() in ("development", "dev", "local")
 
     @field_validator("SUPABASE_URL")
     @classmethod

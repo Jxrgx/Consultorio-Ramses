@@ -6,6 +6,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from enum import StrEnum
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -77,18 +78,44 @@ def _local_time(appointment: Appointment) -> str:
     return local.strftime("%I:%M %p").lstrip("0")
 
 
-def send_same_day_reminder(appointment: Appointment, psychologist_name: str) -> str:
+_WEEKDAYS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+_MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+           "octubre", "noviembre", "diciembre"]
+
+
+def relative_day(appointment: Appointment, now: datetime | None = None) -> str:
+    """'hoy', 'mañana' o 'el martes 1 de diciembre', en la zona horaria del consultorio.
+
+    Se arma a mano (no con strftime) para no depender del idioma del sistema operativo.
+    """
+    tz = ZoneInfo(settings.TIMEZONE)
+    day = appointment.start_time.astimezone(tz).date()
+    today = (now or datetime.now(tz)).astimezone(tz).date()
+    if day == today:
+        return "hoy"
+    if day == today + timedelta(days=1):
+        return "mañana"
+    return f"el {_WEEKDAYS[day.weekday()]} {day.day} de {_MONTHS[day.month - 1]}"
+
+
+def send_appointment_reminder(appointment: Appointment, psychologist_name: str) -> str:
     """Envía la plantilla de recordatorio con los botones "Confirmar" y "Cancelar".
 
-    La plantilla debe existir y estar aprobada en Meta (ver backend/README.md). Cada botón lleva
-    como payload la acción y el ID de la cita, que el webhook recibe al pulsarlo.
+    La plantilla debe existir y estar aprobada en Meta.
     """
     if appointment.patient is None:
         raise ValueError("La cita debe incluir los datos del paciente")
-    mode = "en línea" if appointment.type == AppointmentType.ONLINE else "presencial"
-    body_params = [_first_name(appointment), mode, _local_time(appointment), psychologist_name]
+    
+    # Mapeo explícito con los parameter_name que requiere Meta
+    body_parameters = [
+        {"type": "text", "parameter_name": "paciente", "text": _first_name(appointment)},
+        {"type": "text", "parameter_name": "fecha", "text": relative_day(appointment)},
+        {"type": "text", "parameter_name": "hora", "text": _local_time(appointment)},
+        {"type": "text", "parameter_name": "medico", "text": psychologist_name},
+    ]
+
     components = [
-        {"type": "body", "parameters": [{"type": "text", "text": value} for value in body_params]},
+        {"type": "body", "parameters": body_parameters},
         *(
             {
                 "type": "button",
@@ -99,6 +126,7 @@ def send_same_day_reminder(appointment: Appointment, psychologist_name: str) -> 
             for index, action in enumerate([ReplyAction.CONFIRM, ReplyAction.CANCEL])
         ),
     ]
+
     return _send(
         appointment.patient.phone,
         {
@@ -112,10 +140,38 @@ def send_same_day_reminder(appointment: Appointment, psychologist_name: str) -> 
     )
 
 
+def send_verification_code(phone: str, code: str) -> str:
+    """Envía el OTP con la plantilla de autenticación (OTP_TEMPLATE).
+
+    Las plantillas de categoría Authentication tienen texto fijo de Meta ("{{1}} es tu código de
+    verificación") y un botón "Copiar código"; el código va en el cuerpo y en el botón.
+    """
+    return _send(
+        phone,
+        {
+            "type": "template",
+            "template": {
+                "name": settings.OTP_TEMPLATE,
+                "language": {"code": settings.WHATSAPP_TEMPLATE_LANGUAGE},
+                "components": [
+                    {"type": "body", "parameters": [{"type": "text", "text": code}]},
+                    {
+                        "type": "button",
+                        "sub_type": "url",
+                        "index": "0",
+                        "parameters": [{"type": "text", "text": code}],
+                    },
+                ],
+            },
+        },
+    )
+
+
 def send_confirmation_ack(appointment: Appointment) -> str:
     return send_text(
         appointment.patient.phone,
-        f"¡Gracias, {_first_name(appointment)}! Tu cita de hoy a las {_local_time(appointment)} quedó "
+        f"¡Gracias, {_first_name(appointment)}! Tu cita de {relative_day(appointment)} a las "
+        f"{_local_time(appointment)} quedó "
         "confirmada. Te esperamos.",
     )
 
@@ -123,7 +179,8 @@ def send_confirmation_ack(appointment: Appointment) -> str:
 def send_cancellation_notice(appointment: Appointment) -> str:
     return send_text(
         appointment.patient.phone,
-        f"{_first_name(appointment)}, tu cita de hoy a las {_local_time(appointment)} quedó cancelada "
+        f"{_first_name(appointment)}, tu cita de {relative_day(appointment)} a las "
+        f"{_local_time(appointment)} quedó cancelada "
         "y el horario se liberó. Si quieres reagendar, con gusto te ayudamos.",
     )
 
@@ -169,7 +226,6 @@ def parse_button_replies(body: dict) -> list[ButtonReply]:
 
 def _canonical_phone(phone: str) -> str:
     digits = "".join(ch for ch in phone if ch.isdigit())
-    # WhatsApp reporta los celulares de México como 521XXXXXXXXXX aunque se registren como 52XXXXXXXXXX
     if digits.startswith("521") and len(digits) == 13:
         return "52" + digits[3:]
     return digits

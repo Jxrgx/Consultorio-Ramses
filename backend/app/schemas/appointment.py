@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import datetime
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config import settings
 from app.models.enums import AppointmentStatus, AppointmentType
@@ -34,6 +34,8 @@ class BookAppointmentRequest(BaseModel):
     notes: str | None = None
     # Opcional si solo hay un psicólogo registrado
     psychologist_id: uuid.UUID | None = None
+    # Token de Cloudflare Turnstile (obligatorio si el backend tiene TURNSTILE_SECRET_KEY)
+    captcha_token: str | None = Field(default=None, max_length=2048)
 
     @field_validator("patient_name")
     @classmethod
@@ -100,3 +102,24 @@ class AppointmentRead(BaseModel):
     meeting_link: str | None
     notes: str | None
     created_at: datetime
+
+
+class HoldResponse(BaseModel):
+    """Horario apartado: falta verificar el teléfono con el código enviado por WhatsApp."""
+
+    appointment_id: uuid.UUID
+    hold_expires_at: datetime
+    otp_expires_at: datetime
+    # Cuándo se puede pedir otro código
+    resend_available_at: datetime
+    # Últimos dígitos del teléfono, para mostrar "enviamos un código a •••• 2306"
+    phone_hint: str
+
+
+class VerifyOtpRequest(BaseModel):
+    appointment_id: uuid.UUID
+    code: str = Field(pattern=r"^\d{4,8}$")
+
+
+class ResendOtpRequest(BaseModel):
+    appointment_id: uuid.UUID

@@ -30,9 +30,12 @@ def compute_free_slots(
     return free
 
 
-def get_available_slots(day: date, calendar_id: str | None, slot_minutes: int) -> list[TimeSlot]:
-    """Slots libres del día según la jornada configurada y los bloques ocupados en Google Calendar."""
+def get_available_slots(
+    day: date, calendar_id: str | None, slot_minutes: int, extra_busy: Sequence[TimeSlot] = ()
+) -> list[TimeSlot]:
+    """Slots libres del día: jornada configurada menos lo ocupado en Google Calendar y en
+    extra_busy (citas de la base que aún no están en el calendario, como los holds)."""
     tz = ZoneInfo(settings.TIMEZONE)
     workday = workday_bounds(day, settings.WORKDAY_START, settings.WORKDAY_END, tz)
-    busy = get_busy_slots(day.isoformat(), calendar_id)
+    busy = [*get_busy_slots(day.isoformat(), calendar_id), *extra_busy]
     return compute_free_slots(workday, busy, slot_minutes, not_before=datetime.now(tz))

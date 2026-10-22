@@ -10,6 +10,7 @@ dependencies = [
     "google-api-python-client>=2.201.0",
     "httpx>=0.28.1",
     "pydantic-settings>=2.15.0",
+    "slowapi>=0.1.10",
     "supabase>=2.32.0",
     "tzdata>=2026.5",
     "uvicorn[standard]>=0.54.0",

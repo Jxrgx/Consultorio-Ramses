@@ -29,9 +29,21 @@ interface BookingFormProps {
   onBack: () => void
   submitting: boolean
   summary: ReactNode
+  // Contenido antes de los botones (p. ej. el captcha) y si el envío está bloqueado por él
+  extra?: ReactNode
+  submitBlocked?: boolean
 }
 
-export function BookingForm({ values, onChange, onSubmit, onBack, submitting, summary }: BookingFormProps) {
+export function BookingForm({
+  values,
+  onChange,
+  onSubmit,
+  onBack,
+  submitting,
+  summary,
+  extra,
+  submitBlocked = false,
+}: BookingFormProps) {
   const [errors, setErrors] = useState<Errors>({})
 
   function update(field: keyof BookingFormValues, value: string) {
@@ -134,6 +146,8 @@ export function BookingForm({ values, onChange, onSubmit, onBack, submitting, su
         />
       </Field>
 
+      {extra}
+
       <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
         <button
           type="button"
@@ -145,15 +159,15 @@ export function BookingForm({ values, onChange, onSubmit, onBack, submitting, su
         </button>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || submitBlocked}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70"
         >
           {submitting ? (
             <>
-              <LoaderCircle className="size-5 animate-spin" /> Reservando…
+              <LoaderCircle className="size-5 animate-spin" /> Enviando código…
             </>
           ) : (
-            'Confirmar reserva'
+            'Enviar código por WhatsApp'
           )}
         </button>
       </div>

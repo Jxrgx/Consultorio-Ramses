@@ -1,7 +1,7 @@
-"""Tarea programada: recordatorio por WhatsApp a las citas pendientes del día."""
+"""Tareas programadas: recordatorio por WhatsApp antes de cada cita y limpieza de holds vencidos."""
 
 import logging
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -19,26 +19,25 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def send_pending_reminders(now: datetime | None = None) -> int:
-    """Envía el recordatorio a cada cita de hoy que siga pendiente, aún no haya empezado y no
-    lo haya recibido ya. Devuelve cuántos se enviaron.
+    """Envía el recordatorio a cada cita pendiente a la que le falten REMINDER_HOURS_BEFORE horas
+    o menos y que no lo haya recibido ya. Devuelve cuántos se enviaron.
 
-    Corre cada REMINDER_INTERVAL_MINUTES, así que también alcanza a las citas reservadas durante
-    el día; notification_log evita enviar dos veces el mismo recordatorio.
+    Corre cada REMINDER_INTERVAL_MINUTES: cada cita lo recibe ~24 h antes, y las reservadas con
+    menos anticipación en la siguiente vuelta. notification_log evita enviarlo dos veces
+    (el tipo sigue llamándose reminder_same_day en la base).
     """
     tz = ZoneInfo(settings.TIMEZONE)
     now = (now or datetime.now(tz)).astimezone(tz)
-    if now.time() < settings.REMINDER_SEND_FROM:
+    if not settings.REMINDER_SEND_FROM <= now.time() < settings.REMINDER_SEND_UNTIL:
         return 0
     if not whatsapp.is_configured():
         logger.info("WhatsApp no está configurado; no se envían recordatorios")
         return 0
 
     db = get_db()
-    day_start = datetime.combine(now.date(), time.min, tzinfo=tz)
+    window_end = now + timedelta(hours=settings.REMINDER_HOURS_BEFORE)
     candidates = [
-        a
-        for a in crud.list_appointments_between(db, day_start, day_start + timedelta(days=1))
-        if a.status == AppointmentStatus.PENDING and a.start_time > now
+        a for a in crud.list_appointments_between(db, now, window_end) if a.status == AppointmentStatus.PENDING
     ]
     already_sent = crud.appointment_ids_with_notification(
         db, [a.id for a in candidates], NotificationType.REMINDER_SAME_DAY, NotificationStatus.SENT
@@ -54,11 +53,11 @@ def send_pending_reminders(now: datetime | None = None) -> int:
             db,
             appointment,
             NotificationType.REMINDER_SAME_DAY,
-            lambda a, name=psychologist_name: whatsapp.send_same_day_reminder(a, name),
+            lambda a, name=psychologist_name: whatsapp.send_appointment_reminder(a, name),
         ):
             sent += 1
     if candidates:
-        logger.info("Recordatorios: %d enviados de %d citas pendientes hoy", sent, len(candidates))
+        logger.info("Recordatorios: %d enviados de %d citas pendientes próximas", sent, len(candidates))
     return sent
 
 
@@ -70,24 +69,37 @@ def _run_job() -> None:
         logger.exception("Falló el envío de recordatorios")
 
 
+def cleanup_expired_holds() -> None:
+    """Libera los horarios apartados (hold) cuyo tiempo de verificación ya venció."""
+    try:
+        deleted = crud.delete_expired_holds(get_db(), datetime.now(UTC))
+        if deleted:
+            logger.info("Se liberaron %d horarios apartados sin verificar", deleted)
+    except Exception:
+        logger.exception("Falló la limpieza de holds vencidos")
+
+
 def start_scheduler() -> None:
-    """Arranca el job en un hilo de fondo. Con varios workers de uvicorn, deja REMINDERS_ENABLED=true
-    en uno solo para no enviar duplicados."""
+    """Arranca los jobs en un hilo de fondo (el backend corre en una sola instancia)."""
     global _scheduler
-    if not settings.REMINDERS_ENABLED or _scheduler is not None:
+    if _scheduler is not None:
         return
     _scheduler = BackgroundScheduler(timezone=ZoneInfo(settings.TIMEZONE))
-    _scheduler.add_job(
-        _run_job,
-        "interval",
-        minutes=settings.REMINDER_INTERVAL_MINUTES,
-        id="same_day_reminders",
-        next_run_time=datetime.now(ZoneInfo(settings.TIMEZONE)) + timedelta(seconds=30),
-        max_instances=1,
-        coalesce=True,
-    )
+    # La reserva también borra los holds vencidos al consultar disponibilidad; este job evita
+    # que se acumulen cuando nadie está reservando.
+    _scheduler.add_job(cleanup_expired_holds, "interval", minutes=1, id="cleanup_expired_holds", coalesce=True)
+    if settings.REMINDERS_ENABLED:
+        _scheduler.add_job(
+            _run_job,
+            "interval",
+            minutes=settings.REMINDER_INTERVAL_MINUTES,
+            id="same_day_reminders",
+            next_run_time=datetime.now(ZoneInfo(settings.TIMEZONE)) + timedelta(seconds=30),
+            max_instances=1,
+            coalesce=True,
+        )
+        logger.info("Recordatorios activos (cada %d min)", settings.REMINDER_INTERVAL_MINUTES)
     _scheduler.start()
-    logger.info("Scheduler de recordatorios activo (cada %d min)", settings.REMINDER_INTERVAL_MINUTES)
 
 
 def shutdown_scheduler() -> None:

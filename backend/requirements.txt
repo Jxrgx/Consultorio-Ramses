@@ -26,6 +26,8 @@ cryptography==50.0.2
     # via
     #   google-auth
     #   pyjwt
+deprecated==3.0.0
+    # via limits
 deprecation==2.1.0
     # via
     #   postgrest
@@ -77,6 +79,8 @@ idna==3.20
     #   httpx
     #   requests
     #   yarl
+limits==5.8.0
+    # via slowapi
 multidict==7.1.0
     # via yarl
 opentelemetry-api==1.45.1
@@ -84,7 +88,9 @@ opentelemetry-api==1.45.1
     #   fastapi
     #   google-api-core
 packaging==26.3
-    # via deprecation
+    # via
+    #   deprecation
+    #   limits
 postgrest==2.32.0
     # via supabase
 propcache==0.5.4
@@ -128,6 +134,8 @@ realtime==2.32.0
     # via supabase
 requests==2.34.2
     # via google-api-core
+slowapi==0.1.10
+    # via psico-agenda-backend
 starlette==1.7.0
     # via fastapi
 storage3==2.32.0
@@ -144,6 +152,7 @@ typing-extensions==4.16.0
     # via
     #   anyio
     #   fastapi
+    #   limits
     #   opentelemetry-api
     #   pydantic
     #   pydantic-core
@@ -175,6 +184,8 @@ websockets==15.0.1
     # via
     #   realtime
     #   uvicorn
+wrapt==2.5.1
+    # via deprecated
 yarl==1.25.1
     # via
     #   postgrest

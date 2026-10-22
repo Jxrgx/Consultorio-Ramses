@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CalendarX2, CircleAlert, Mail, MessageSquareText, Phone, RotateCw } from 'lucide-react'
+import { CalendarX2, CircleAlert, Mail, MessageSquareText, Phone, RotateCw, TriangleAlert } from 'lucide-react'
 import type { AdminStatus, Appointment } from '../../services/api'
 import { formatTime12 } from '../../utils/dates'
 import { AppointmentActions } from './AppointmentActions'
@@ -89,10 +89,23 @@ export function AppointmentTimeline({
 
             <article
               className={clsx(
-                'min-w-0 flex-1 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5',
+                'min-w-0 flex-1 rounded-2xl bg-white p-4 shadow-sm sm:p-5',
+                appointment.unconfirmed_alert ? 'ring-2 ring-amber-400' : 'ring-1 ring-slate-200',
                 cancelled && 'opacity-70',
               )}
             >
+              {appointment.unconfirmed_alert && (
+                <p className="-mx-1 mb-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                  <span>
+                    <strong>Sin confirmar.</strong> La cita está por empezar y el paciente no ha respondido.{' '}
+                    {appointment.reminder_sent
+                      ? 'Se le envió el recordatorio por WhatsApp.'
+                      : 'El recordatorio por WhatsApp no se pudo enviar.'}{' '}
+                    Puedes escribirle o llamarle.
+                  </span>
+                </p>
+              )}
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="truncate text-lg font-semibold text-slate-900">{appointment.patient.full_name}</h3>

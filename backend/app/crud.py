@@ -11,6 +11,7 @@ from app.models import (
     AppointmentType,
     NotificationStatus,
     NotificationType,
+    OtpCode,
     Patient,
     Psychologist,
 )
@@ -110,6 +111,8 @@ def create_appointment(
     end_time: datetime,
     type: AppointmentType,
     notes: str | None,
+    status: AppointmentStatus = AppointmentStatus.PENDING,
+    hold_expires_at: datetime | None = None,
 ) -> Appointment:
     row = {
         "psychologist_id": str(psychologist_id),
@@ -117,9 +120,11 @@ def create_appointment(
         "start_time": start_time.isoformat(),
         "end_time": end_time.isoformat(),
         "type": type.value,
-        "status": AppointmentStatus.PENDING.value,
+        "status": status.value,
         "notes": notes,
     }
+    if hold_expires_at is not None:
+        row["hold_expires_at"] = hold_expires_at.isoformat()
     return Appointment.model_validate(db.table("appointment").insert(row).execute().data[0])
 
 
@@ -129,6 +134,100 @@ def update_appointment(db: Client, appointment_id: uuid.UUID, **fields) -> None:
 
 def delete_appointment(db: Client, appointment_id: uuid.UUID) -> None:
     db.table("appointment").delete().eq("id", str(appointment_id)).execute()
+
+
+# --- Holds (horarios apartados mientras se verifica el OTP) ---
+
+ACTIVE_STATUSES = [AppointmentStatus.HOLD.value, AppointmentStatus.PENDING.value, AppointmentStatus.CONFIRMED.value]
+
+
+def delete_expired_holds(db: Client, now: datetime) -> int:
+    """Borra las citas en hold cuyo apartado venció (sus otp_code se borran en cascada)."""
+    rows = (
+        db.table("appointment")
+        .delete()
+        .eq("status", AppointmentStatus.HOLD.value)
+        .lt("hold_expires_at", now.isoformat())
+        .execute()
+        .data
+    )
+    return len(rows)
+
+
+def delete_holds_for_patient(db: Client, patient_id: uuid.UUID) -> None:
+    """Libera los apartados previos de un paciente (p. ej. abandonó la verificación y reintenta)."""
+    db.table("appointment").delete().eq("patient_id", str(patient_id)).eq(
+        "status", AppointmentStatus.HOLD.value
+    ).execute()
+
+
+def count_active_appointments(db: Client, patient_id: uuid.UUID, now: datetime) -> int:
+    """Citas futuras del paciente que siguen activas (hold, pending o confirmed)."""
+    rows = (
+        db.table("appointment")
+        .select("id")
+        .eq("patient_id", str(patient_id))
+        .in_("status", ACTIVE_STATUSES)
+        .gt("start_time", now.isoformat())
+        .execute()
+        .data
+    )
+    return len(rows)
+
+
+def list_busy_intervals(db: Client, start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    """Intervalos ocupados en la base (citas activas y holds) que se cruzan con [start, end).
+
+    Complementa a Google Calendar: los holds solo existen aquí. Llamar después de
+    delete_expired_holds para no contar apartados vencidos.
+    """
+    rows = (
+        db.table("appointment")
+        .select("start_time,end_time")
+        .in_("status", ACTIVE_STATUSES)
+        .lt("start_time", end.isoformat())
+        .gt("end_time", start.isoformat())
+        .execute()
+        .data
+    )
+    return [(datetime.fromisoformat(r["start_time"]), datetime.fromisoformat(r["end_time"])) for r in rows]
+
+
+# --- Códigos OTP ---
+
+
+def create_otp(
+    db: Client, *, appointment_id: uuid.UUID, phone: str, code_hash: str, expires_at: datetime
+) -> OtpCode:
+    row = {
+        "appointment_id": str(appointment_id),
+        "phone": phone,
+        "code_hash": code_hash,
+        "expires_at": expires_at.isoformat(),
+    }
+    return OtpCode.model_validate(db.table("otp_code").insert(row).execute().data[0])
+
+
+def latest_otp(db: Client, appointment_id: uuid.UUID) -> OtpCode | None:
+    rows = (
+        db.table("otp_code")
+        .select("*")
+        .eq("appointment_id", str(appointment_id))
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return OtpCode.model_validate(rows[0]) if rows else None
+
+
+def count_otps_for_phone_since(db: Client, phone: str, since: datetime) -> int:
+    rows = db.table("otp_code").select("id").eq("phone", phone).gte("created_at", since.isoformat()).execute().data
+    return len(rows)
+
+
+def update_otp(db: Client, otp_id: uuid.UUID, **fields) -> None:
+    db.table("otp_code").update(fields).eq("id", str(otp_id)).execute()
 
 
 def create_notification_log(
