@@ -184,7 +184,7 @@ export function BookingPage() {
   }
 
   const summary = type && date && slot && (
-    <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl bg-teal-50 p-4 text-sm text-teal-900">
+    <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-2xl bg-teal-50 p-4 text-sm text-teal-900">
       <span className="flex items-center gap-1.5">
         {type === 'online' ? <Video className="size-4" /> : <Building2 className="size-4" />}
         {type === 'online' ? 'En línea' : 'Presencial'}
@@ -202,8 +202,8 @@ export function BookingPage() {
     <div className="min-h-screen bg-slate-50">
       <Header />
 
-      <main className="mx-auto -mt-12 max-w-3xl px-4 pb-16 sm:px-6">
-        <div className="rounded-3xl bg-white p-5 shadow-lg shadow-slate-200/60 ring-1 ring-slate-200 sm:p-8">
+      <main className="mx-auto -mt-10 max-w-3xl px-4 pb-16 sm:px-6 md:-mt-12">
+        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
           {step < 5 && (
             <div className="mb-8">
               <Stepper current={step} />
@@ -211,14 +211,14 @@ export function BookingPage() {
           )}
 
           {bannerError && (
-            <div role="alert" className="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4">
+            <div role="alert" className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
               <CircleAlert className="mt-0.5 size-5 shrink-0 text-rose-500" />
-              <p className="flex-1 text-sm text-rose-800">{bannerError}</p>
+              <p className="flex-1 pt-px text-sm leading-relaxed text-rose-800">{bannerError}</p>
               <button
                 type="button"
                 onClick={() => setBannerError(null)}
                 aria-label="Cerrar aviso"
-                className="text-rose-400 hover:text-rose-600"
+                className="-m-3 flex size-12 shrink-0 items-center justify-center rounded-full text-rose-400 hover:text-rose-600"
               >
                 <X className="size-4" />
               </button>
@@ -241,7 +241,7 @@ export function BookingPage() {
           {step === 2 && (
             <section>
               <StepTitle title="Elige fecha y hora" subtitle="Horarios en hora de Ciudad de México." />
-              <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-6">
                 <DatePicker
                   value={date}
                   onChange={selectDate}
@@ -329,14 +329,14 @@ export function BookingPage() {
 function StepTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="mb-6">
-      <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
-      <p className="mt-1 text-slate-600">{subtitle}</p>
+      <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{title}</h2>
+      <p className="mt-1.5 text-slate-600">{subtitle}</p>
     </div>
   )
 }
 
 function StepActions({ children }: { children: ReactNode }) {
-  return <div className="mt-8 flex items-center justify-between gap-3">{children}</div>
+  return <div className="mt-8 flex items-center justify-between gap-4">{children}</div>
 }
 
 interface ButtonProps {
@@ -351,7 +351,7 @@ function PrimaryButton({ children, onClick, disabled }: ButtonProps) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+      className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-6 font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:flex-none sm:px-8"
     >
       {children}
     </button>
@@ -363,7 +363,7 @@ function SecondaryButton({ children, onClick }: ButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-xl px-4 py-3 font-medium text-slate-700 hover:bg-slate-100"
+      className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-5 font-medium text-slate-700 hover:bg-slate-100"
     >
       {children}
     </button>

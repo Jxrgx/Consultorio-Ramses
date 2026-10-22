@@ -67,7 +67,7 @@ export function BookingForm({
   const notesLeft = LIMITS.notes - values.notes.length
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {summary}
 
       <Field label="Nombre completo" icon={User} error={errors.fullName} htmlFor="fullName">
@@ -142,7 +142,7 @@ export function BookingForm({
           onChange={(e) => update('notes', e.target.value)}
           onBlur={() => validateField('notes')}
           placeholder="Cuéntanos brevemente qué te gustaría trabajar (opcional)."
-          className={clsx(inputClass(errors.notes), 'resize-y')}
+          className={clsx(inputClass(errors.notes), 'h-auto min-h-28 resize-y py-3.5 leading-relaxed')}
         />
       </Field>
 
@@ -153,14 +153,14 @@ export function BookingForm({
           type="button"
           onClick={onBack}
           disabled={submitting}
-          className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-5 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
         >
           <ArrowLeft className="size-4" /> Cambiar horario
         </button>
         <button
           type="submit"
           disabled={submitting || submitBlocked}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70"
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-8 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70"
         >
           {submitting ? (
             <>
@@ -177,7 +177,8 @@ export function BookingForm({
 
 function inputClass(error?: string) {
   return clsx(
-    'w-full rounded-xl border bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 transition',
+    // h-14: objetivo táctil cómodo; text-base evita el zoom automático de iOS al enfocar
+    'h-14 w-full rounded-2xl border bg-white px-4 text-base text-slate-900 placeholder:text-slate-400 transition',
     'focus:outline-none focus:ring-4',
     error ? 'border-rose-400 focus:ring-rose-100' : 'border-slate-300 focus:border-teal-500 focus:ring-teal-100',
   )
@@ -198,15 +199,19 @@ interface FieldProps {
 function Field({ label, icon: Icon, htmlFor, children, error, hint, optional, aside }: FieldProps) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+      <label htmlFor={htmlFor} className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
         <Icon className="size-4 text-slate-400" />
         {label}
         {optional && <span className="font-normal text-slate-400">(opcional)</span>}
       </label>
       {children}
       {(error || hint || aside) && (
-        <div className="mt-1.5 flex items-start justify-between gap-3">
-          {error ? <p className="text-sm text-rose-600">{error}</p> : <p className="text-sm text-slate-500">{hint}</p>}
+        <div className="mt-2 flex items-start justify-between gap-3">
+          {error ? (
+            <p className="text-sm text-rose-600">{error}</p>
+          ) : (
+            <p className="text-sm leading-relaxed text-slate-500">{hint}</p>
+          )}
           {aside && <div className="shrink-0">{aside}</div>}
         </div>
       )}

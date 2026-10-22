@@ -175,7 +175,7 @@ export function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* pb-28: deja espacio para que el aviso flotante no tape las acciones de la última cita */}
-      <div className="mx-auto max-w-5xl space-y-8 px-4 pt-8 pb-28 sm:px-6">
+      <div className="mx-auto max-w-5xl space-y-10 px-4 pt-6 pb-28 sm:px-6 sm:pt-10">
         <DashboardHeader
           date={date}
           timeZone={TIMEZONE}
@@ -188,16 +188,16 @@ export function DashboardPage() {
           onLogout={() => void signOut()}
         />
 
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-900">Agenda del día</h2>
-            <div className="flex flex-wrap items-center gap-2">
+        <section className="space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">Agenda del día</h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <DateNavigator value={date} today={today} onChange={setDate} />
               {!loading && !blocked && !result?.error && date >= today && (
                 <button
                   type="button"
                   onClick={openCancelDay}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-rose-50"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-medium text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-rose-50"
                 >
                   <CalendarOff className="size-4" /> Cancelar agenda del día
                 </button>
@@ -206,7 +206,7 @@ export function DashboardPage() {
           </div>
           {blocked && <BlockedDayBanner blocked={blocked} onUnblock={submitUnblock} />}
           {unconfirmed > 0 && (
-            <div role="status" className="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+            <div role="status" className="flex items-start gap-3 rounded-2xl bg-amber-50 p-4 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200 sm:items-center">
               <TriangleAlert className="size-5 shrink-0 text-amber-600" />
               {unconfirmed === 1
                 ? '1 cita está por empezar y el paciente no la ha confirmado.'
@@ -248,8 +248,13 @@ export function DashboardPage() {
           ) : (
             <CircleAlert className="size-5 shrink-0 text-rose-500" />
           )}
-          <span className="flex-1">{toast.text}</span>
-          <button type="button" onClick={() => setToast(null)} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600">
+          <span className="flex-1 pt-px">{toast.text}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Cerrar"
+            className="-m-3 flex size-12 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+          >
             <X className="size-4" />
           </button>
         </div>

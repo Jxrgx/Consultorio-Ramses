@@ -57,18 +57,18 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-8">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-lg shadow-slate-200/60 ring-1 ring-slate-200"
+        className="w-full max-w-sm rounded-3xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8"
       >
         <div className="flex size-12 items-center justify-center rounded-2xl bg-teal-600 text-white">
           <LockKeyhole className="size-6" />
         </div>
-        <h1 className="mt-5 text-xl font-semibold text-slate-900">Panel del psicólogo</h1>
-        <p className="mt-1 text-sm text-slate-600">Inicia sesión para ver y gestionar tu agenda.</p>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-slate-900">Panel del psicólogo</h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">Inicia sesión para ver y gestionar tu agenda.</p>
 
-        <label htmlFor="login-email" className="mt-6 mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+        <label htmlFor="login-email" className="mt-8 mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
           <Mail className="size-4 text-slate-400" /> Correo electrónico
         </label>
         <input
@@ -78,10 +78,10 @@ export function LoginPage() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none"
+          className="h-14 w-full rounded-2xl border border-slate-300 px-4 text-base focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none"
         />
 
-        <label htmlFor="login-password" className="mt-4 mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700">
+        <label htmlFor="login-password" className="mt-5 mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
           <KeyRound className="size-4 text-slate-400" /> Contraseña
         </label>
         <div className="relative">
@@ -92,20 +92,20 @@ export function LoginPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 py-3 pr-12 pl-4 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none"
+            className="h-14 w-full rounded-2xl border border-slate-300 pr-14 pl-4 text-base focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none"
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            className="absolute inset-y-0 right-0 flex items-center px-4 text-slate-400 hover:text-slate-600"
+            className="absolute inset-y-0 right-0 flex w-14 items-center justify-center text-slate-400 hover:text-slate-600"
           >
-            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
           </button>
         </div>
 
         {error && (
-          <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
           </p>
         )}
@@ -113,11 +113,11 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={submitting || !supabase || !email.trim() || !password}
-          className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+          className="mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-60"
         >
           {submitting && <LoaderCircle className="size-5 animate-spin" />} Iniciar sesión
         </button>
-        <Link to="/" className="mt-4 block text-center text-sm text-slate-500 hover:text-slate-700">
+        <Link to="/" className="mt-3 flex h-12 items-center justify-center rounded-2xl text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700">
           Volver al portal de pacientes
         </Link>
       </form>

@@ -36,24 +36,25 @@ export function DatePicker({ value, onChange, minDate, maxDate, blockedDates }: 
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="mb-3 flex items-center justify-between">
+    // En móvil va sin marco propio: así cada día del calendario mide ~44 px de ancho
+    <div className="bg-white sm:rounded-2xl sm:border sm:border-slate-100 sm:p-5 sm:shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
         <button
           type="button"
           onClick={() => shiftMonth(-1)}
           disabled={!canGoBack}
           aria-label="Mes anterior"
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+          className="flex size-12 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
         >
           <ChevronLeft className="size-5" />
         </button>
-        <span className="font-semibold text-slate-900">{formatMonth(year, month)}</span>
+        <span className="text-lg font-semibold text-slate-900">{formatMonth(year, month)}</span>
         <button
           type="button"
           onClick={() => shiftMonth(1)}
           disabled={!canGoForward}
           aria-label="Mes siguiente"
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+          className="flex size-12 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
         >
           <ChevronRight className="size-5" />
         </button>
@@ -84,7 +85,7 @@ export function DatePicker({ value, onChange, minDate, maxDate, blockedDates }: 
               aria-label={blocked ? `${iso}, sin atención` : iso}
               title={blocked ? 'Sin atención este día' : undefined}
               className={clsx(
-                'aspect-square rounded-xl text-sm transition',
+                'aspect-square min-h-10 rounded-xl text-[15px] transition',
                 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100',
                 selected && 'bg-teal-600 font-semibold text-white',
                 !selected && !disabled && 'text-slate-800 hover:bg-teal-50 hover:text-teal-800',
@@ -99,7 +100,7 @@ export function DatePicker({ value, onChange, minDate, maxDate, blockedDates }: 
         })}
       </div>
       {blockedDates && blockedDates.size > 0 && (
-        <p className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+        <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
           <span className="inline-block size-3 rounded bg-slate-100 ring-1 ring-slate-200" aria-hidden />
           Días sin atención
         </p>

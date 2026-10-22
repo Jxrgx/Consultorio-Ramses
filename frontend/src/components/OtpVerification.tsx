@@ -85,7 +85,7 @@ export function OtpVerification({ hold: initialHold, summary, onVerified, onExpi
     <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {summary}
 
-      <div className="flex items-start gap-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
+      <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 p-4 text-sm leading-relaxed text-emerald-900">
         <MessageCircle className="mt-0.5 size-5 shrink-0 text-emerald-600" />
         <p>
           Te enviamos un código de {OTP_LENGTH} dígitos por WhatsApp al número <strong>{hold.phone_hint}</strong>.
@@ -94,7 +94,7 @@ export function OtpVerification({ hold: initialHold, summary, onVerified, onExpi
       </div>
 
       <div>
-        <label htmlFor="otp" className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label htmlFor="otp" className="mb-2 block text-sm font-medium text-slate-700">
           Código de verificación
         </label>
         <input
@@ -110,7 +110,7 @@ export function OtpVerification({ hold: initialHold, summary, onVerified, onExpi
           placeholder={'•'.repeat(OTP_LENGTH)}
           autoFocus
           className={clsx(
-            'w-full rounded-xl border bg-white px-4 py-3 text-center font-mono text-2xl tracking-[0.5em] text-slate-900 transition',
+            'h-16 w-full rounded-2xl border bg-white px-4 text-center font-mono text-2xl tracking-[0.5em] text-slate-900 transition',
             'focus:ring-4 focus:outline-none',
             error ? 'border-rose-400 focus:ring-rose-100' : 'border-slate-300 focus:border-teal-500 focus:ring-teal-100',
           )}
@@ -126,7 +126,7 @@ export function OtpVerification({ hold: initialHold, summary, onVerified, onExpi
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+      <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
         <span
           className={clsx('flex items-center gap-1.5', holdLeft <= 60 ? 'font-medium text-amber-700' : 'text-slate-500')}
         >
@@ -136,7 +136,7 @@ export function OtpVerification({ hold: initialHold, summary, onVerified, onExpi
           type="button"
           onClick={handleResend}
           disabled={resending || resendLeft > 0}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-medium text-teal-700 hover:bg-teal-50 disabled:text-slate-400 disabled:hover:bg-transparent"
+          className="-mx-3 inline-flex h-12 items-center gap-1.5 self-start rounded-xl px-3 font-medium text-teal-700 hover:bg-teal-50 disabled:text-slate-400 disabled:hover:bg-transparent sm:mx-0 sm:self-auto"
         >
           <RotateCw className={clsx('size-4', resending && 'animate-spin')} />
           {resendLeft > 0 ? `Reenviar código en ${resendLeft} s` : 'Reenviar código'}
@@ -148,14 +148,14 @@ export function OtpVerification({ hold: initialHold, summary, onVerified, onExpi
           type="button"
           onClick={onBack}
           disabled={verifying}
-          className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-5 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
         >
           <ArrowLeft className="size-4" /> Corregir mis datos
         </button>
         <button
           type="submit"
           disabled={verifying || code.length !== OTP_LENGTH}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-8 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {verifying ? (
             <>

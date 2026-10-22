@@ -35,7 +35,7 @@ export function AppointmentTypeSelector({ value, onChange }: AppointmentTypeSele
             aria-checked={selected}
             onClick={() => onChange(optionValue)}
             className={clsx(
-              'relative flex flex-col items-start gap-3 rounded-2xl border-2 p-5 text-left transition',
+              'relative flex min-h-24 items-center gap-4 rounded-2xl border-2 p-5 pr-12 text-left transition sm:flex-col sm:items-start sm:gap-3 sm:p-6',
               'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100',
               selected
                 ? 'border-teal-600 bg-teal-50'
@@ -44,7 +44,7 @@ export function AppointmentTypeSelector({ value, onChange }: AppointmentTypeSele
           >
             <span
               className={clsx(
-                'flex size-12 items-center justify-center rounded-xl',
+                'flex size-12 shrink-0 items-center justify-center rounded-xl',
                 selected ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600',
               )}
             >
@@ -52,9 +52,9 @@ export function AppointmentTypeSelector({ value, onChange }: AppointmentTypeSele
             </span>
             <span>
               <span className="block text-lg font-semibold text-slate-900">{title}</span>
-              <span className="mt-1 block text-sm text-slate-600">{description}</span>
+              <span className="mt-1 block text-sm leading-relaxed text-slate-600">{description}</span>
             </span>
-            {selected && <CircleCheck className="absolute top-4 right-4 size-6 text-teal-600" />}
+            {selected && <CircleCheck className="absolute top-1/2 right-4 size-6 -translate-y-1/2 text-teal-600 sm:top-4 sm:translate-y-0" />}
           </button>
         )
       })}

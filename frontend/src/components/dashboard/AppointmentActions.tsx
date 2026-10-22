@@ -57,12 +57,12 @@ export function AppointmentActions({ appointment, timeZone, busy, onChangeStatus
 
   if (confirmingCancel) {
     return (
-      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm ring-1 ring-rose-200">
-        <span className="flex-1 text-rose-800">¿Cancelar esta cita? Se eliminará de Google Calendar y el horario quedará libre.</span>
+      <div className="flex flex-col gap-3 rounded-2xl bg-rose-50 p-4 text-sm ring-1 ring-rose-200 sm:flex-row sm:items-center">
+        <span className="flex-1 leading-relaxed text-rose-800">¿Cancelar esta cita? Se eliminará de Google Calendar y el horario quedará libre.</span>
         <button
           type="button"
           onClick={() => setConfirmingCancel(false)}
-          className="rounded-lg px-3 py-1.5 font-medium text-slate-600 hover:bg-white"
+          className="h-12 rounded-xl px-5 font-medium text-slate-600 hover:bg-white"
         >
           No
         </button>
@@ -72,7 +72,7 @@ export function AppointmentActions({ appointment, timeZone, busy, onChangeStatus
             setConfirmingCancel(false)
             onChangeStatus('cancelled')
           }}
-          className="rounded-lg bg-rose-600 px-3 py-1.5 font-medium text-white hover:bg-rose-700"
+          className="h-12 rounded-xl bg-rose-600 px-5 font-medium text-white hover:bg-rose-700"
         >
           Sí, cancelar
         </button>
@@ -81,12 +81,13 @@ export function AppointmentActions({ appointment, timeZone, busy, onChangeStatus
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    // Cuadrícula de 2 columnas en móvil: botones anchos y fáciles de tocar con el pulgar
+    <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
       <a
         href={whatsappUrl(appointment, timeZone)}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1ebe5a]"
+        className="inline-flex h-12 items-center justify-center gap-1.5 rounded-xl bg-[#25D366] px-4 text-sm font-medium text-white hover:bg-[#1ebe5a]"
       >
         <MessageCircle className="size-4" /> WhatsApp
       </a>
@@ -115,7 +116,7 @@ export function AppointmentActions({ appointment, timeZone, busy, onChangeStatus
           {menuOpen && (
             <ul
               role="menu"
-              className="absolute right-0 z-10 mt-1 w-60 rounded-xl bg-white p-1 shadow-lg ring-1 ring-slate-200 sm:left-0 sm:right-auto"
+              className="absolute right-0 z-10 mt-2 w-64 rounded-2xl bg-white p-1.5 shadow-lg ring-1 ring-slate-200 sm:right-auto sm:left-0"
             >
               {MENU_STATUSES.filter((s) => s !== appointment.status).map((status) => {
                 const { label, icon: Icon } = STATUS_STYLES[status]
@@ -126,7 +127,7 @@ export function AppointmentActions({ appointment, timeZone, busy, onChangeStatus
                       role="menuitem"
                       onClick={() => choose(status)}
                       className={clsx(
-                        'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50',
+                        'flex h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm hover:bg-slate-50',
                         status === 'cancelled' ? 'text-rose-700' : 'text-slate-700',
                       )}
                     >
@@ -140,7 +141,7 @@ export function AppointmentActions({ appointment, timeZone, busy, onChangeStatus
         </div>
       )}
 
-      {busy && <LoaderCircle className="size-4 animate-spin text-slate-400" aria-label="Actualizando" />}
+      {busy && <LoaderCircle className="col-span-2 mx-auto size-5 animate-spin text-slate-400 sm:col-span-1" aria-label="Actualizando" />}
     </div>
   )
 }
@@ -161,7 +162,7 @@ function ActionButton({ children, onClick, disabled, className, ariaExpanded }: 
       disabled={disabled}
       aria-expanded={ariaExpanded}
       className={clsx(
-        'inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium ring-1 transition disabled:opacity-50',
+        'inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-white px-4 text-sm font-medium whitespace-nowrap ring-1 transition disabled:opacity-50 sm:w-auto',
         className,
       )}
     >

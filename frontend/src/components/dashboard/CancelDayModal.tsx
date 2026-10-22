@@ -49,7 +49,7 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-800"
+            className="inline-flex items-center rounded-xl bg-slate-900 px-6 font-medium text-white hover:bg-slate-800"
           >
             Cerrar
           </button>
@@ -67,8 +67,8 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
         {result.items.length > 0 && (
           <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
             {result.items.map((item) => (
-              <li key={item.appointment_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3">
-                <span className="w-20 font-medium text-slate-900">{formatTime12(item.start_time, timeZone)}</span>
+              <li key={item.appointment_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
+                <span className="w-20 shrink-0 font-medium text-slate-900">{formatTime12(item.start_time, timeZone)}</span>
                 <span className="min-w-0 flex-1 truncate">{item.patient_name}</span>
                 {!item.cancelled ? (
                   <span className="flex items-center gap-1 text-rose-700">
@@ -113,7 +113,7 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-xl px-4 py-2 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex items-center rounded-xl px-5 font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
             Volver
           </button>
@@ -121,7 +121,7 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
             type="button"
             onClick={submit}
             disabled={!acknowledged || submitting}
-            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {submitting && <LoaderCircle className="size-4 animate-spin" />}
             {count === 0 ? 'Bloquear día' : `Cancelar ${count === 1 ? '1 cita' : `${count} citas`} y bloquear día`}
@@ -144,8 +144,8 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
       {count > 0 && (
         <ul className="divide-y divide-slate-100 rounded-xl ring-1 ring-slate-200">
           {affected.map((a) => (
-            <li key={a.id} className="flex gap-3 p-3">
-              <span className="w-20 font-medium text-slate-900">{formatTime12(a.start_time, timeZone)}</span>
+            <li key={a.id} className="flex gap-3 px-4 py-3">
+              <span className="w-20 shrink-0 font-medium text-slate-900">{formatTime12(a.start_time, timeZone)}</span>
               <span className="min-w-0 flex-1 truncate">{a.patient.full_name}</span>
             </li>
           ))}
@@ -153,7 +153,7 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
       )}
 
       <label className="block">
-        <span className="mb-1 flex justify-between font-medium text-slate-800">
+        <span className="mb-2 flex justify-between font-medium text-slate-800">
           Motivo <span className="font-normal text-slate-500">opcional</span>
         </span>
         <textarea
@@ -163,9 +163,9 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
           rows={2}
           disabled={submitting}
           placeholder="Ej. asistiré a un congreso"
-          className="w-full resize-none rounded-xl border border-slate-300 px-3 py-2 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 focus:outline-none"
+          className="min-h-24 w-full resize-none rounded-2xl border border-slate-300 px-4 py-3 text-base focus:border-teal-500 focus:ring-4 focus:ring-teal-100 focus:outline-none sm:text-sm"
         />
-        <span className="mt-1 flex justify-between text-xs text-slate-500">
+        <span className="mt-2 flex justify-between gap-3 text-xs text-slate-500">
           <span>{count > 0 ? 'Se incluye en el WhatsApp a los pacientes.' : 'Queda como nota del día bloqueado.'}</span>
           <span>
             {reason.length}/{REASON_MAX_LENGTH}
@@ -173,13 +173,13 @@ export function CancelDayModal({ date, timeZone, affected, onSubmit, onClose }: 
         </span>
       </label>
 
-      <label className="flex items-start gap-2 rounded-xl bg-slate-50 p-3">
+      <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl bg-slate-50 p-4">
         <input
           type="checkbox"
           checked={acknowledged}
           onChange={(e) => setAcknowledged(e.target.checked)}
           disabled={submitting}
-          className="mt-0.5 size-4 accent-rose-600"
+          className="mt-0.5 size-5 shrink-0 accent-rose-600"
         />
         <span>
           {count === 0
