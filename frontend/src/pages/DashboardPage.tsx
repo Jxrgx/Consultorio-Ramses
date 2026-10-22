@@ -1,19 +1,25 @@
 import clsx from 'clsx'
-import { CircleAlert, CircleCheck, TriangleAlert, X } from 'lucide-react'
+import { CalendarOff, CircleAlert, CircleCheck, TriangleAlert, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { AppointmentTimeline } from '../components/dashboard/AppointmentTimeline'
+import { BlockedDayBanner } from '../components/dashboard/BlockedDayBanner'
+import { CancelDayModal } from '../components/dashboard/CancelDayModal'
 import { STATUS_STYLES } from '../components/dashboard/statusStyles'
 import { DashboardHeader } from '../components/dashboard/DashboardHeader'
 import { DateNavigator } from '../components/dashboard/DateNavigator'
 import { TIMEZONE } from '../config'
 import {
   ApiError,
+  cancelDay,
   getAdminAppointments,
+  getAdminBlockedDays,
   getCalendarStatus,
+  unblockDay,
   updateAppointmentStatus,
   type AdminStatus,
   type Appointment,
+  type BlockedDay,
   type CalendarStatus,
 } from '../services/api'
 import { todayIn } from '../utils/dates'
@@ -31,6 +37,8 @@ interface ListResult {
   requestId: string
   date: string
   appointments: Appointment[]
+  // El día está bloqueado en el portal (no laboral)
+  blocked: BlockedDay | null
   error: string | null
 }
 
@@ -50,6 +58,8 @@ export function DashboardPage() {
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
+  // Citas que cancelaría "Cancelar agenda del día" (se fija al abrir el modal); null = cerrado
+  const [cancelDayAffected, setCancelDayAffected] = useState<Appointment[] | null>(null)
 
   const requestId = `${date}#${refreshKey}`
   // Skeleton solo al cambiar de día; las recargas del mismo día muestran el icono girando
@@ -57,6 +67,7 @@ export function DashboardPage() {
   const refreshing = !loading && result?.requestId !== requestId
   const appointments = loading ? [] : (result?.appointments ?? [])
   const unconfirmed = appointments.filter((a) => a.unconfirmed_alert).length
+  const blocked = loading ? null : (result?.blocked ?? null)
 
   // Sesión vencida o cuenta sin acceso: al cerrar sesión, ProtectedRoute manda a /login
   const handleAuthError = useCallback(
@@ -72,12 +83,14 @@ export function DashboardPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getAdminAppointments(date, controller.signal)
-      .then((data) => setResult({ requestId, date, appointments: data, error: null }))
+    Promise.all([getAdminAppointments(date, controller.signal), getAdminBlockedDays(date, date, controller.signal)])
+      .then(([data, blockedDays]) =>
+        setResult({ requestId, date, appointments: data, blocked: blockedDays[0] ?? null, error: null }),
+      )
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
         if (handleAuthError(err)) return
-        setResult({ requestId, date, appointments: [], error: errorMessage(err) })
+        setResult({ requestId, date, appointments: [], blocked: null, error: errorMessage(err) })
       })
     return () => controller.abort()
   }, [date, requestId, handleAuthError])
@@ -126,6 +139,39 @@ export function DashboardPage() {
     }
   }
 
+  function openCancelDay() {
+    const now = Date.now()
+    // Las mismas que toma el backend: activas y que aún no terminan
+    setCancelDayAffected(
+      appointments.filter(
+        (a) => (a.status === 'pending' || a.status === 'confirmed') && new Date(a.end_time).getTime() > now,
+      ),
+    )
+  }
+
+  async function submitCancelDay(reason: string | null) {
+    try {
+      return await cancelDay(date, reason)
+    } catch (err) {
+      handleAuthError(err)
+      throw new Error(errorMessage(err))
+    } finally {
+      refresh()
+    }
+  }
+
+  async function submitUnblock() {
+    try {
+      await unblockDay(date)
+      setToast({ kind: 'success', text: 'Día desbloqueado: los pacientes ya pueden reservar.' })
+    } catch (err) {
+      handleAuthError(err)
+      throw new Error(errorMessage(err))
+    } finally {
+      refresh()
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* pb-28: deja espacio para que el aviso flotante no tape las acciones de la última cita */}
@@ -145,8 +191,20 @@ export function DashboardPage() {
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-900">Agenda del día</h2>
-            <DateNavigator value={date} today={today} onChange={setDate} />
+            <div className="flex flex-wrap items-center gap-2">
+              <DateNavigator value={date} today={today} onChange={setDate} />
+              {!loading && !blocked && !result?.error && date >= today && (
+                <button
+                  type="button"
+                  onClick={openCancelDay}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium text-rose-700 shadow-sm ring-1 ring-rose-200 hover:bg-rose-50"
+                >
+                  <CalendarOff className="size-4" /> Cancelar agenda del día
+                </button>
+              )}
+            </div>
           </div>
+          {blocked && <BlockedDayBanner blocked={blocked} onUnblock={submitUnblock} />}
           {unconfirmed > 0 && (
             <div role="status" className="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
               <TriangleAlert className="size-5 shrink-0 text-amber-600" />
@@ -166,6 +224,16 @@ export function DashboardPage() {
           />
         </section>
       </div>
+
+      {cancelDayAffected && (
+        <CancelDayModal
+          date={date}
+          timeZone={TIMEZONE}
+          affected={cancelDayAffected}
+          onSubmit={submitCancelDay}
+          onClose={() => setCancelDayAffected(null)}
+        />
+      )}
 
       {toast && (
         <div

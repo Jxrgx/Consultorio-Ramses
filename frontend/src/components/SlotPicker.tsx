@@ -1,10 +1,12 @@
 import clsx from 'clsx'
-import { CalendarX2, CircleAlert, RotateCw } from 'lucide-react'
+import { CalendarOff, CalendarX2, CircleAlert, RotateCw } from 'lucide-react'
 import type { Slot } from '../services/api'
 import { formatTime } from '../utils/dates'
 
 interface SlotPickerProps {
   slots: Slot[]
+  // El consultorio no atiende ese día
+  blocked?: boolean
   loading: boolean
   error: string | null
   selected: Slot | null
@@ -13,7 +15,17 @@ interface SlotPickerProps {
   onRetry: () => void
 }
 
-export function SlotPicker({ slots, loading, error, selected, timeZone, onSelect, onRetry }: SlotPickerProps) {
+export function SlotPicker({ slots, blocked, loading, error, selected, timeZone, onSelect, onRetry }: SlotPickerProps) {
+  if (blocked) {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+        <CalendarOff className="size-8 text-slate-400" />
+        <p className="font-medium text-slate-700">El consultorio no atenderá este día</p>
+        <p className="text-sm text-slate-500">Elige otra fecha en el calendario.</p>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-busy="true" aria-label="Cargando horarios">

@@ -6,14 +6,23 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from googleapiclient.errors import HttpError
 from postgrest.exceptions import APIError
+from supabase import Client
 
 from app import crud
 from app.api.deps import AdminEmail, DbDep, calendar_errors, find_psychologist, require_admin
 from app.core.config import settings
-from app.models import Appointment, AppointmentStatus, NotificationStatus, NotificationType
-from app.schemas.admin import AdminAppointmentRead, AppointmentStatusUpdate, CalendarStatus
+from app.models import Appointment, AppointmentStatus, NotificationStatus, NotificationType, Psychologist
+from app.schemas.admin import (
+    AdminAppointmentRead,
+    AppointmentStatusUpdate,
+    BlockedDayRead,
+    CalendarStatus,
+    CancelDayItem,
+    CancelDayRequest,
+    CancelDayResponse,
+)
 from app.schemas.appointment import AppointmentRead
-from app.services.appointments import cancel_appointment, confirm_appointment
+from app.services.appointments import cancel_appointment, cancel_day, confirm_appointment
 from app.services.google_calendar import CalendarNotConfiguredError, CalendarQueryError, get_busy_slots
 
 # Código de Postgres para un valor que no existe en el enum (p. ej. falta la migración de no_show)
@@ -61,6 +70,85 @@ def list_appointments(
         )
         for a in appointments
     ]
+
+
+def _require_psychologist(db: Client) -> Psychologist:
+    psychologist = find_psychologist(db, None)
+    if psychologist is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No hay psicólogo registrado")
+    return psychologist
+
+
+def _missing_table_error() -> HTTPException:
+    return HTTPException(
+        status.HTTP_409_CONFLICT,
+        "Falta la tabla de días bloqueados: ejecuta la migración "
+        "backend/supabase/migrations/20261022000000_blocked_day.sql en Supabase",
+    )
+
+
+@router.post("/appointments/cancel-day", response_model=CancelDayResponse)
+def cancel_day_appointments(db: DbDep, email: AdminEmail, data: CancelDayRequest) -> CancelDayResponse:
+    """Bloquea el día y cancela sus citas pendientes y confirmadas, avisando a cada paciente por WhatsApp.
+
+    Con el día bloqueado el portal no ofrece horarios en esa fecha hasta que se desbloquee
+    (DELETE /admin/blocked-days/{date}). Si alguna cita no se pudo cancelar se informa en
+    items (error) y se puede reintentar.
+    """
+    today = datetime.now(ZoneInfo(settings.TIMEZONE)).date()
+    if data.date < today:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "No se puede cancelar la agenda de un día pasado")
+
+    psychologist = _require_psychologist(db)
+    try:
+        results = cancel_day(db, psychologist, data.date, data.reason, blocked_by=email)
+    except APIError as exc:
+        if exc.code in crud.MISSING_TABLE:
+            raise _missing_table_error() from exc
+        raise
+    blocked = crud.get_blocked_day(db, psychologist.id, data.date)
+    return CancelDayResponse(
+        date=data.date,
+        blocked_day=BlockedDayRead.model_validate(blocked.model_dump()),
+        total=len(results),
+        cancelled=sum(r.cancelled for r in results),
+        notified=sum(r.notified for r in results),
+        items=[
+            CancelDayItem(
+                appointment_id=r.appointment.id,
+                patient_name=r.appointment.patient.full_name if r.appointment.patient else "",
+                start_time=r.appointment.start_time,
+                cancelled=r.cancelled,
+                notified=r.notified,
+                error=r.error,
+            )
+            for r in results
+        ],
+    )
+
+
+@router.get("/blocked-days", response_model=list[BlockedDayRead])
+def list_blocked_days(
+    db: DbDep,
+    start: Annotated[date, Query(alias="from", description="Primer día (YYYY-MM-DD)")],
+    end: Annotated[date, Query(alias="to", description="Último día, inclusive")],
+) -> list[BlockedDayRead]:
+    psychologist = _require_psychologist(db)
+    return [BlockedDayRead.model_validate(b.model_dump()) for b in crud.list_blocked_days(db, psychologist.id, start, end)]
+
+
+@router.delete("/blocked-days/{day}", status_code=status.HTTP_204_NO_CONTENT)
+def unblock_day(db: DbDep, day: date) -> None:
+    """Vuelve a habilitar el día en el portal. Las citas que se cancelaron al bloquearlo siguen canceladas."""
+    psychologist = _require_psychologist(db)
+    try:
+        found = crud.unblock_day(db, psychologist.id, day)
+    except APIError as exc:
+        if exc.code in crud.MISSING_TABLE:
+            raise _missing_table_error() from exc
+        raise
+    if not found:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ese día no está bloqueado")
 
 
 @router.patch("/appointments/{appointment_id}/status", response_model=AppointmentRead)

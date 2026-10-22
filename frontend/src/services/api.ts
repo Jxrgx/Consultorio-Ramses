@@ -18,6 +18,8 @@ export interface AvailabilityResponse {
   timezone: string
   slot_duration_minutes: number
   slots: Slot[]
+  // El psicólogo bloqueó el día (no laboral): no hay horarios
+  blocked: boolean
 }
 
 export interface BookAppointmentRequest {
@@ -102,11 +104,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = (await res.json().catch(() => null)) as { detail?: FastApiDetail } | null
     throw new ApiError(res.status, detailToMessage(body?.detail, `Error ${res.status}`))
   }
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
 export function getAvailability(date: string, signal?: AbortSignal): Promise<AvailabilityResponse> {
   return request(`/availability?date=${encodeURIComponent(date)}`, { signal })
+}
+
+/** Días no laborales del rango (inclusive), para deshabilitarlos en el calendario. */
+export async function getBlockedDays(from: string, to: string, signal?: AbortSignal): Promise<string[]> {
+  const data = await request<{ dates: string[] }>(
+    `/availability/blocked-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    { signal },
+  )
+  return data.dates
 }
 
 /** Aparta el horario y envía el código de verificación por WhatsApp. */
@@ -157,4 +169,46 @@ export function updateAppointmentStatus(id: string, status: AdminStatus): Promis
 
 export function getCalendarStatus(signal?: AbortSignal): Promise<CalendarStatus> {
   return adminRequest('/admin/calendar/status', { signal })
+}
+
+export interface BlockedDay {
+  day: string
+  reason: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface CancelDayItem {
+  appointment_id: string
+  patient_name: string
+  start_time: string
+  cancelled: boolean
+  // Se le envió el aviso por WhatsApp
+  notified: boolean
+  error: string | null
+}
+
+export interface CancelDayResponse {
+  date: string
+  blocked_day: BlockedDay
+  total: number
+  cancelled: number
+  notified: number
+  items: CancelDayItem[]
+}
+
+/** Bloquea el día en el portal, cancela sus citas activas y avisa a los pacientes por WhatsApp. */
+export function cancelDay(date: string, reason: string | null): Promise<CancelDayResponse> {
+  return adminRequest('/admin/appointments/cancel-day', { method: 'POST', body: JSON.stringify({ date, reason }) })
+}
+
+export function getAdminBlockedDays(from: string, to: string, signal?: AbortSignal): Promise<BlockedDay[]> {
+  return adminRequest(`/admin/blocked-days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, {
+    signal,
+  })
+}
+
+/** Vuelve a habilitar el día en el portal (las citas canceladas siguen canceladas). */
+export function unblockDay(date: string): Promise<void> {
+  return adminRequest(`/admin/blocked-days/${encodeURIComponent(date)}`, { method: 'DELETE' })
 }

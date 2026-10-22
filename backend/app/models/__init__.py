@@ -1,4 +1,5 @@
 from app.models.appointment import Appointment
+from app.models.blocked_day import BlockedDay
 from app.models.enums import (
     AppointmentStatus,
     AppointmentType,
@@ -12,6 +13,7 @@ from app.models.psychologist import Psychologist
 
 __all__ = [
     "Appointment",
+    "BlockedDay",
     "AppointmentStatus",
     "AppointmentType",
     "NotificationLog",

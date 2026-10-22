@@ -1,20 +1,25 @@
 """Acceso a las tablas de Supabase. Cada función recibe el cliente para poder sustituirlo en pruebas."""
 
+import logging
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
+from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.models import (
     Appointment,
     AppointmentStatus,
     AppointmentType,
+    BlockedDay,
     NotificationStatus,
     NotificationType,
     OtpCode,
     Patient,
     Psychologist,
 )
+
+logger = logging.getLogger(__name__)
 
 # Código de Postgres para violación de la restricción appointment_no_overlap
 OVERLAP_VIOLATION = "23P01"
@@ -191,6 +196,79 @@ def list_busy_intervals(db: Client, start: datetime, end: datetime) -> list[tupl
         .data
     )
     return [(datetime.fromisoformat(r["start_time"]), datetime.fromisoformat(r["end_time"])) for r in rows]
+
+
+# --- Días bloqueados ---
+
+# PostgREST/Postgres cuando la tabla no existe (falta la migración 20261022000000_blocked_day.sql)
+MISSING_TABLE = ("PGRST205", "42P01")
+
+
+def list_blocked_days(db: Client, psychologist_id: uuid.UUID, start: date, end: date) -> list[BlockedDay]:
+    """Días bloqueados en [start, end], en orden. Sin la migración devuelve [] para no tumbar el portal."""
+    try:
+        rows = (
+            db.table("blocked_day")
+            .select("*")
+            .eq("psychologist_id", str(psychologist_id))
+            .gte("day", start.isoformat())
+            .lte("day", end.isoformat())
+            .order("day")
+            .execute()
+            .data
+        )
+    except APIError as exc:
+        if exc.code not in MISSING_TABLE:
+            raise
+        logger.error("Falta la tabla blocked_day: ejecuta la migración 20261022000000_blocked_day.sql")
+        return []
+    return [BlockedDay.model_validate(row) for row in rows]
+
+
+def get_blocked_day(db: Client, psychologist_id: uuid.UUID, day: date) -> BlockedDay | None:
+    blocked = list_blocked_days(db, psychologist_id, day, day)
+    return blocked[0] if blocked else None
+
+
+def block_day(
+    db: Client, *, psychologist_id: uuid.UUID, day: date, reason: str | None, created_by: str | None
+) -> BlockedDay:
+    """Bloquea el día; si ya estaba bloqueado actualiza el motivo."""
+    row = {
+        "psychologist_id": str(psychologist_id),
+        "day": day.isoformat(),
+        "reason": reason,
+        "created_by": created_by,
+    }
+    data = db.table("blocked_day").upsert(row, on_conflict="psychologist_id,day").execute().data
+    return BlockedDay.model_validate(data[0])
+
+
+def unblock_day(db: Client, psychologist_id: uuid.UUID, day: date) -> bool:
+    """Devuelve True si el día estaba bloqueado."""
+    rows = (
+        db.table("blocked_day")
+        .delete()
+        .eq("psychologist_id", str(psychologist_id))
+        .eq("day", day.isoformat())
+        .execute()
+        .data
+    )
+    return bool(rows)
+
+
+def delete_holds_between(db: Client, start: datetime, end: datetime) -> int:
+    """Libera los apartados (hold) que empiezan en [start, end): p. ej. al bloquear ese día."""
+    rows = (
+        db.table("appointment")
+        .delete()
+        .eq("status", AppointmentStatus.HOLD.value)
+        .gte("start_time", start.isoformat())
+        .lt("start_time", end.isoformat())
+        .execute()
+        .data
+    )
+    return len(rows)
 
 
 # --- Códigos OTP ---

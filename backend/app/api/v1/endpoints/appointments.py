@@ -30,7 +30,7 @@ from app.schemas.appointment import (
     ResendOtpRequest,
     VerifyOtpRequest,
 )
-from app.schemas.availability import AvailabilityResponse, Slot
+from app.schemas.availability import AvailabilityResponse, BlockedDaysResponse, Slot
 from app.services import otp, whatsapp
 from app.services.availability import get_available_slots
 from app.services.google_calendar import CalendarEventData, TimeSlot, create_calendar_event
@@ -42,6 +42,9 @@ router = APIRouter()
 
 SLOT_UNAVAILABLE = "El horario solicitado no está disponible"
 HOLD_GONE = "Tu reserva expiró o ya no existe. Elige tu horario de nuevo."
+DAY_BLOCKED = "El consultorio no atenderá ese día."
+# Días que puede abarcar una consulta de días bloqueados (el portal pide su ventana de reserva)
+MAX_BLOCKED_DAYS_RANGE = 120
 
 
 def _now() -> datetime:
@@ -72,13 +75,37 @@ def get_availability(
     slot_minutes = (
         psychologist.slot_duration_minutes if psychologist else settings.SLOT_DURATION_MINUTES
     )
-    free = _free_slots(db, day, calendar_id, slot_minutes)
+    blocked = _is_blocked(db, psychologist, day)
+    free = [] if blocked else _free_slots(db, day, calendar_id, slot_minutes)
     return AvailabilityResponse(
         date=day,
         timezone=settings.TIMEZONE,
         slot_duration_minutes=slot_minutes,
         slots=[Slot(start=s.start, end=s.end) for s in free],
+        blocked=blocked,
     )
+
+
+@router.get("/availability/blocked-days", response_model=BlockedDaysResponse, tags=["availability"])
+def get_blocked_days(
+    db: DbDep,
+    start: Annotated[date, Query(alias="from", description="Primer día (YYYY-MM-DD)")],
+    end: Annotated[date, Query(alias="to", description="Último día, inclusive")],
+    psychologist_id: uuid.UUID | None = None,
+) -> BlockedDaysResponse:
+    """Días no laborales del rango, para deshabilitarlos en el calendario del portal."""
+    if end < start or (end - start).days > MAX_BLOCKED_DAYS_RANGE:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"El rango debe ser de 0 a {MAX_BLOCKED_DAYS_RANGE} días"
+        )
+    psychologist = find_psychologist(db, psychologist_id)
+    if psychologist is None:
+        return BlockedDaysResponse(dates=[])
+    return BlockedDaysResponse(dates=[b.day for b in crud.list_blocked_days(db, psychologist.id, start, end)])
+
+
+def _is_blocked(db: Client, psychologist: Psychologist | None, day: date) -> bool:
+    return psychologist is not None and crud.get_blocked_day(db, psychologist.id, day) is not None
 
 
 def _issue_otp(db: Client, appointment_id: uuid.UUID, phone: str) -> datetime:
@@ -170,6 +197,8 @@ def book_appointment(request: Request, db: DbDep, data: BookAppointmentRequest) 
     start_time = data.start_time
     end_time = start_time + timedelta(minutes=psychologist.slot_duration_minutes)
     local_day = start_time.astimezone(ZoneInfo(settings.TIMEZONE)).date()
+    if _is_blocked(db, psychologist, local_day):
+        raise HTTPException(status.HTTP_409_CONFLICT, DAY_BLOCKED)
     free = _free_slots(db, local_day, psychologist.google_calendar_id, psychologist.slot_duration_minutes)
     if not any(slot.start == start_time for slot in free):
         raise HTTPException(status.HTTP_409_CONFLICT, SLOT_UNAVAILABLE)
@@ -243,8 +272,13 @@ def verify_otp(request: Request, db: DbDep, data: VerifyOtpRequest) -> Appointme
         left = "Te queda 1 intento" if remaining == 1 else f"Te quedan {remaining} intentos"
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Código incorrecto. {left}.")
 
-    # 5. Teléfono verificado: la cita entra a la agenda real
+    # 5. Teléfono verificado: la cita entra a la agenda real (salvo que el día se haya bloqueado
+    # mientras el paciente escribía el código)
     psychologist = crud.get_psychologist(db, appointment.psychologist_id)
+    local_day = appointment.start_time.astimezone(ZoneInfo(settings.TIMEZONE)).date()
+    if _is_blocked(db, psychologist, local_day):
+        crud.delete_appointment(db, appointment.id)
+        raise HTTPException(status.HTTP_410_GONE, f"{DAY_BLOCKED} Elige otra fecha.")
     patient = appointment.patient
     with calendar_errors():  # si Google falla, el hold sigue vigente y se puede reintentar
         event = create_calendar_event(

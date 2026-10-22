@@ -3,13 +3,18 @@
 import logging
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from googleapiclient.errors import HttpError
 from postgrest.exceptions import APIError
 from supabase import Client
 
 from app import crud
-from app.models import Appointment, AppointmentStatus, NotificationStatus, NotificationType
+from app.core.config import settings
+from app.models import Appointment, AppointmentStatus, NotificationStatus, NotificationType, Psychologist
+from app.services import whatsapp
 from app.services.google_calendar import (
     CalendarNotConfiguredError,
     delete_calendar_event,
@@ -50,6 +55,75 @@ def cancel_appointment(db: Client, appointment: Appointment) -> None:
     if appointment.google_event_id:
         delete_calendar_event(appointment.google_event_id, _calendar_id(db, appointment))
     crud.update_appointment(db, appointment.id, status=AppointmentStatus.CANCELLED.value)
+
+
+@dataclass
+class DayCancellation:
+    appointment: Appointment
+    cancelled: bool
+    notified: bool = False
+    error: str | None = None
+
+
+def cancel_day(
+    db: Client,
+    psychologist: Psychologist,
+    day: date,
+    reason: str | None,
+    blocked_by: str | None = None,
+    now: datetime | None = None,
+) -> list[DayCancellation]:
+    """Bloquea el día y cancela sus citas pending/confirmed que aún no terminan, avisando a cada paciente.
+
+    El día se bloquea primero (y se liberan los apartados en verificación) para que no entren
+    reservas nuevas mientras se cancelan las existentes; se desbloquea con unblock_day.
+    Cada cita se procesa por separado: si Google falla con una, esa queda sin cancelar (igual que
+    cancel_appointment) y se sigue con las demás. Repetirlo es seguro: solo toma las citas que
+    siguen activas.
+    """
+    day_start = datetime.combine(day, time.min, tzinfo=ZoneInfo(settings.TIMEZONE))
+    day_end = day_start + timedelta(days=1)
+    now = now or datetime.now(UTC)
+    crud.block_day(db, psychologist_id=psychologist.id, day=day, reason=reason, created_by=blocked_by)
+    crud.delete_holds_between(db, day_start, day_end)
+
+    targets = [
+        a
+        for a in crud.list_appointments_between(db, day_start, day_end)
+        if a.psychologist_id == psychologist.id
+        and a.status in (AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED)
+        and a.end_time > now
+    ]
+
+    results: list[DayCancellation] = []
+    for appointment in targets:
+        try:
+            cancel_appointment(db, appointment)
+        except (HttpError, CalendarNotConfiguredError, APIError) as exc:
+            logger.warning("No se pudo cancelar la cita %s: %s", appointment.id, exc)
+            error = (
+                "No se guardó el cambio en la base de datos"
+                if isinstance(exc, APIError)
+                else "No se pudo borrar el evento de Google Calendar"
+            )
+            results.append(DayCancellation(appointment, cancelled=False, error=error))
+            continue
+        notified = send_whatsapp_and_log(
+            db,
+            appointment,
+            NotificationType.CANCELLATION_NOTICE,
+            lambda a: whatsapp.send_day_cancellation_notice(a, psychologist.name, reason),
+        )
+        results.append(DayCancellation(appointment, cancelled=True, notified=notified))
+
+    logger.info(
+        "Agenda del %s cancelada: %d de %d citas, %d avisos enviados",
+        day,
+        sum(r.cancelled for r in results),
+        len(results),
+        sum(r.notified for r in results),
+    )
+    return results
 
 
 def send_whatsapp_and_log(

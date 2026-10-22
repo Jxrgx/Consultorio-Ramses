@@ -31,6 +31,34 @@ cancela (y borra el evento para liberar el horario).
    el mismo `WHATSAPP_VERIFY_TOKEN`, y suscríbete al campo **messages**. Meta necesita una URL
    pública con HTTPS (en local: `ngrok http 8000`).
 
+## Cancelar la agenda de un día
+
+Requiere ejecutar `supabase/migrations/20261022000000_blocked_day.sql` en el SQL Editor.
+
+`POST /api/v1/admin/appointments/cancel-day` con `{"date": "YYYY-MM-DD", "reason": "opcional"}`:
+
+1. Registra el día en `blocked_day`: el portal lo muestra deshabilitado y no acepta reservas
+   (tampoco verifica códigos de apartados de ese día).
+2. Cancela las citas `pending`/`confirmed` que aún no terminan y borra sus eventos de Google Calendar.
+3. Avisa a cada paciente por WhatsApp.
+
+La respuesta detalla por cita si se canceló y si se notificó; repetirla solo reintenta las que
+quedaron activas. `DELETE /api/v1/admin/blocked-days/{date}` vuelve a habilitar el día (las citas
+canceladas siguen canceladas). `GET /api/v1/availability/blocked-days?from=&to=` da los días
+bloqueados al calendario del portal.
+
+Plantilla de Meta **`cancelacion_agenda`**, categoría *Utility*, idioma `es_MX`, con variables con
+nombre (*Type of variable: Name*):
+
+```
+Hola {{paciente}}, lamentamos informarte que tu cita de {{fecha}} a las {{hora}} con {{medico}}
+fue cancelada. Motivo: {{motivo}}. Responde a este mensaje si quieres reagendar.
+```
+
+(ejemplos: `María`, `mañana`, `4:00 PM`, `Lic. Jorge Castro`, `un imprevisto en la agenda del consultorio`).
+Mientras Meta no la apruebe, se intenta enviar el mismo texto como mensaje libre, que solo llega
+si el paciente escribió en las últimas 24 h.
+
 ## Reserva segura (captcha, límites, hold y OTP)
 
 1. `POST /api/v1/appointments/book`: valida Cloudflare Turnstile (si hay `TURNSTILE_SECRET_KEY`),

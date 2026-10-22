@@ -140,6 +140,47 @@ def send_appointment_reminder(appointment: Appointment, psychologist_name: str) 
     )
 
 
+def send_day_cancellation_notice(appointment: Appointment, psychologist_name: str, reason: str | None) -> str:
+    """Avisa que el psicólogo canceló la agenda del día (plantilla DAY_CANCELLATION_TEMPLATE).
+
+    Se usa plantilla porque el texto libre solo llega si el paciente escribió en las últimas 24 h.
+    Si la plantilla falla (p. ej. aún no la aprueba Meta) se intenta como texto libre.
+    """
+    if appointment.patient is None:
+        raise ValueError("La cita debe incluir los datos del paciente")
+    # Meta rechaza parámetros vacíos: sin motivo se usa un texto genérico
+    motivo = reason or settings.DAY_CANCELLATION_DEFAULT_REASON
+    body_parameters = [
+        {"type": "text", "parameter_name": "paciente", "text": _first_name(appointment)},
+        {"type": "text", "parameter_name": "fecha", "text": relative_day(appointment)},
+        {"type": "text", "parameter_name": "hora", "text": _local_time(appointment)},
+        {"type": "text", "parameter_name": "medico", "text": psychologist_name},
+        {"type": "text", "parameter_name": "motivo", "text": motivo},
+    ]
+    try:
+        return _send(
+            appointment.patient.phone,
+            {
+                "type": "template",
+                "template": {
+                    "name": settings.WHATSAPP_DAY_CANCELLATION_TEMPLATE,
+                    "language": {"code": settings.WHATSAPP_TEMPLATE_LANGUAGE},
+                    "components": [{"type": "body", "parameters": body_parameters}],
+                },
+            },
+        )
+    except WhatsAppSendError as template_error:
+        try:
+            return send_text(
+                appointment.patient.phone,
+                f"Hola {_first_name(appointment)}, lamentamos informarte que tu cita de "
+                f"{relative_day(appointment)} a las {_local_time(appointment)} con {psychologist_name} "
+                f"fue cancelada. Motivo: {motivo}. Responde a este mensaje si quieres reagendar.",
+            )
+        except WhatsAppSendError:
+            raise template_error from None
+
+
 def send_verification_code(phone: str, code: str) -> str:
     """Envía el OTP con la plantilla de autenticación (OTP_TEMPLATE).
 

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Plantilla aprobada en Meta para el recordatorio (ver backend/README.md)
     WHATSAPP_REMINDER_TEMPLATE: str = "recordatorio_cita"
     WHATSAPP_TEMPLATE_LANGUAGE: str = "es_MX"
+    # Plantilla del aviso cuando el psicólogo cancela todas las citas de un día
+    WHATSAPP_DAY_CANCELLATION_TEMPLATE: str = "cancelacion_agenda"
+    DAY_CANCELLATION_DEFAULT_REASON: str = "un imprevisto en la agenda del consultorio"
 
     # Recordatorios: se envían cuando a una cita pendiente le faltan REMINDER_HOURS_BEFORE horas o
     # menos, revisando cada REMINDER_INTERVAL_MINUTES y solo entre REMINDER_SEND_FROM y

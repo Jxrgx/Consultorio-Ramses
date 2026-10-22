@@ -14,6 +14,7 @@ import {
   ApiError,
   bookAppointment,
   getAvailability,
+  getBlockedDays,
   type Appointment,
   type AppointmentType,
   type HoldResponse,
@@ -80,18 +81,33 @@ export function BookingPage() {
   // Turnstile: cada token sirve para un solo envío; cambiar la key vuelve a montar el widget
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [captchaKey, setCaptchaKey] = useState(0)
+  const [blockedDates, setBlockedDates] = useState<ReadonlySet<string>>(new Set())
 
   const requestKey = date ? `${date}#${reloadKey}` : null
   // Está cargando mientras el último resultado no corresponda a la consulta actual
   const availabilityLoading = requestKey !== null && result?.key !== requestKey
   const timeZone = result?.timeZone ?? TIMEZONE
 
+  // Días no laborales de toda la ventana de reserva; si falla, el calendario sigue funcionando
+  // y el backend igual responde sin horarios para esos días
+  useEffect(() => {
+    const controller = new AbortController()
+    getBlockedDays(today, maxDate, controller.signal)
+      .then((dates) => setBlockedDates(new Set(dates)))
+      .catch(() => {})
+    return () => controller.abort()
+  }, [today, maxDate])
+
   useEffect(() => {
     if (!date) return
     const key = `${date}#${reloadKey}`
     const controller = new AbortController()
     getAvailability(date, controller.signal)
-      .then((data) => setResult({ key, slots: data.slots, timeZone: data.timezone, error: null }))
+      .then((data) => {
+        setResult({ key, slots: data.slots, timeZone: data.timezone, error: null })
+        // Se bloqueó después de cargar el calendario: se marca en gris desde ya
+        if (data.blocked) setBlockedDates((prev) => new Set(prev).add(date))
+      })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return
         setResult({ key, slots: [], timeZone: TIMEZONE, error: errorMessage(err) })
@@ -226,7 +242,13 @@ export function BookingPage() {
             <section>
               <StepTitle title="Elige fecha y hora" subtitle="Horarios en hora de Ciudad de México." />
               <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                <DatePicker value={date} onChange={selectDate} minDate={today} maxDate={maxDate} />
+                <DatePicker
+                  value={date}
+                  onChange={selectDate}
+                  minDate={today}
+                  maxDate={maxDate}
+                  blockedDates={blockedDates}
+                />
                 <div>
                   {date ? (
                     <>
@@ -236,6 +258,7 @@ export function BookingPage() {
                       </h3>
                       <SlotPicker
                         slots={result?.slots ?? []}
+                        blocked={blockedDates.has(date)}
                         loading={availabilityLoading}
                         error={result?.error ?? null}
                         selected={slot}
